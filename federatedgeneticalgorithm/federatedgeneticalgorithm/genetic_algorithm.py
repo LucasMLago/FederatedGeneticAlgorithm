@@ -60,10 +60,10 @@ class GeneticAlgorithm:
         """Build train, validation and test dataloaders with consistent seeding."""
         train_size = int(0.8 * len(self.trainset))
         val_size = len(self.trainset) - train_size
-        
+
         generator = torch.Generator().manual_seed(seed)
         train_subset, val_subset = random_split(self.trainset, [train_size, val_size], generator=generator)
-        
+
         train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, generator=generator)
         val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False, generator=generator)
         test_loader = DataLoader(self.testset, batch_size=batch_size, shuffle=False, generator=generator)
@@ -222,13 +222,13 @@ class GeneticAlgorithm:
                 self._requires_momentum(ind2["optimizer"])
             )
         ]
-        
+
         if valid_attrs:
             attribute = random.choice(valid_attrs)
             ind1[attribute], ind2[attribute] = ind2[attribute], ind1[attribute]
 
         return ind1, ind2
-    
+
     def _tournament_select(self, population: List[creator.Individual], k: int, tournsize: int) -> List[creator.Individual]:
         """Select k individuals using tournament selection."""
         selected = []

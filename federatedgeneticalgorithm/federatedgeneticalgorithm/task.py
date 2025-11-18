@@ -96,9 +96,9 @@ def build_dataloaders(trainset: Dataset, testset: Dataset, batch_size: int, seed
     val_size = len(trainset) - train_size
     train_subset, val_subset = random_split(trainset, [train_size, val_size], generator=torch.Generator().manual_seed(seed))
     
-    train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, num_workers=2, generator=torch.Generator().manual_seed(seed))
-    val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False, num_workers=2, generator=torch.Generator().manual_seed(seed))
-    test_loader = DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=2, generator=torch.Generator().manual_seed(seed))
+    train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, num_workers=0, generator=torch.Generator().manual_seed(seed))
+    val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False, num_workers=0, generator=torch.Generator().manual_seed(seed))
+    test_loader = DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=0, generator=torch.Generator().manual_seed(seed))
 
     return train_loader, val_loader, test_loader
 
@@ -159,11 +159,11 @@ def test(net: nn.Module, testloader: DataLoader, device: str):
         for x, y in testloader:
             x, y = x.to(device), y.to(device)
             logits = net(x)
-            loss = criterion(logits, y)
+            loss_batch = criterion(logits, y)
             predicted = torch.argmax(logits, dim=1)
             accuracy = (predicted.eq(y).sum().item()) / y.shape[0]
             correct += accuracy * y.size(0)
-            loss += loss.item() * y.size(0)
+            loss += loss_batch.item() * y.size(0)
     avg_loss = loss / len(testloader.dataset)
     accuracy = correct / len(testloader.dataset)
-    return avg_loss, accuracy
+    return float(avg_loss), float(accuracy)

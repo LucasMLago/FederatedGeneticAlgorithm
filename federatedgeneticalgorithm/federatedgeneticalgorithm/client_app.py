@@ -37,15 +37,16 @@ def train(msg: Message, context: Context):
     local_testset = get_partition(testset, partition_id, num_partitions, seed=config.SEED)
 
     # Run genetic algorithm to find best hyperparameters
-    print(f"[Client {partition_id}] Running genetic algorithm to optimize hyperparameters...")
     print(f"[Client {partition_id}] Local training set size: {len(local_trainset)}")
     print(f"[Client {partition_id}] Local test set size: {len(local_testset)}")
+    print(f"[Client {partition_id}] Running genetic algorithm to optimize hyperparameters...")
     
     ga = GeneticAlgorithm(model, local_trainset, local_testset)
     pop, log = ga.run()
     best_individual = ga.get_best_individuals(pop, k=1)[0]
     print(f"[Client {partition_id}] Genetic algorithm completed.")
     print(f"[Client {partition_id}] best individual fitness: {log.select('max')[-1]:.4f}")
+
     
     print(f"[Client {partition_id}] Best hyperparameters found:")
     print(f"  - batch_size: {best_individual['batch_size']}")
@@ -107,11 +108,11 @@ def train(msg: Message, context: Context):
 
     model_record = ArrayRecord(model.state_dict())
     metrics = {
-        "train_loss": train_metrics["loss"],
-        "train_accuracy": train_metrics["accuracy"],
-        "val_loss": val_loss,
-        "val_accuracy": val_acc,
-        "num_examples": int(len(trainloader.dataset)),
+        "train-loss": train_metrics["loss"],
+        "train-accuracy": train_metrics["accuracy"],
+        "val-loss": val_loss,
+        "val-accuracy": val_acc,
+        "num-examples": int(len(trainloader.dataset)),
     }
     metric_record = MetricRecord(metrics)
     content = RecordDict({"arrays": model_record, "metrics": metric_record})
@@ -145,9 +146,9 @@ def evaluate(msg: Message, context: Context):
     )
 
     metrics = {
-        "eval_loss": eval_loss,
-        "eval_acc": eval_acc,
-        "num_examples": int(len(testloader.dataset)),
+        "eval-loss": eval_loss,
+        "eval-acc": eval_acc,
+        "num-examples": int(len(testloader.dataset)),
     }
     metric_record = MetricRecord(metrics)
     content = RecordDict({"metrics": metric_record})
