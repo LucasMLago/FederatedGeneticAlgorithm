@@ -8,6 +8,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, random_split
 
+from lion_pytorch import Lion
+
 import multiprocessing
 from multiprocessing.pool import ThreadPool
 
@@ -22,7 +24,7 @@ creator.create("Individual", dict, fitness=creator.FitnessMax)
 
 HYPERPARAMS = {
     "batch_sizes": [16, 32, 64, 128, 256, 512, 1024],
-    "optimizers": ["sgd", "adam", "rmsprop"],
+    "optimizers": ["adam", "adamw", "radam", "lion", "sgd"],
     "learning_rates": [0.001, 0.003, 0.005, 0.01, 0.03, 0.05],
     "weight_decays": [0.0, 1e-5, 1e-4, 1e-3],
     "momentums": [0.0, 0.3, 0.5, 0.7, 0.9, 0.99],
@@ -73,10 +75,10 @@ class GeneticAlgorithm:
     def _create_individual(self) -> Dict:
         """Create a random individual (hyperparameter configuration)."""
         optimizer_type = self.toolbox.attr_optimizer()
-        
-        # Create a copy of the model for each individual
+
+        # Create a recursive copy of the model to avoid shared references
         model_copy = copy.deepcopy(self.model)
-        
+
         individual = {
             "model": model_copy,
             "batch_size": self.toolbox.attr_batch_size(),
@@ -84,18 +86,18 @@ class GeneticAlgorithm:
             "lr": self.toolbox.attr_lr(),
             "weight_decay": self.toolbox.attr_weight_decay(),
         }
-        
+
         # Add momentum only for optimizers that support it
         if self._requires_momentum(optimizer_type):
             individual["momentum"] = self.toolbox.attr_momentum()
-            
+
         return individual
-    
+
     @staticmethod
     def _requires_momentum(optimizer_type: str) -> bool:
         """Check if optimizer requires momentum parameter."""
-        return optimizer_type in ("sgd", "rmsprop")
-    
+        return optimizer_type == "sgd"
+
     def _create_optimizer(
         self, 
         model: nn.Module, 
@@ -106,16 +108,20 @@ class GeneticAlgorithm:
     ) -> optim.Optimizer:
         """Factory method to create optimizer instance."""
         params = model.parameters()
-        
+
         if optimizer_type == "adam":
             return optim.Adam(params, lr=lr, weight_decay=weight_decay)
-        elif optimizer_type == "rmsprop":
-            return optim.RMSprop(params, lr=lr, weight_decay=weight_decay, momentum=momentum or 0.0)
+        elif optimizer_type == "adamw":
+            return optim.AdamW(params, lr=lr, weight_decay=weight_decay)
+        elif optimizer_type == "radam":
+            return optim.RAdam(params, lr=lr, weight_decay=weight_decay)
+        elif optimizer_type == "lion":
+            return Lion(params, lr=lr, weight_decay=weight_decay)
         elif optimizer_type == "sgd":
-            return optim.SGD(params, lr=lr, weight_decay=weight_decay, momentum=momentum or 0.0)
+            return optim.SGD(params, lr=lr, weight_decay=weight_decay, momentum=momentum)
         else:
             raise ValueError(f"Unknown optimizer type: {optimizer_type}")
-    
+
     @staticmethod
     def _calculate_accuracy(logits: torch.Tensor, labels: torch.Tensor) -> float:
         """Calculate classification accuracy."""
@@ -127,7 +133,7 @@ class GeneticAlgorithm:
         """Evaluate model on given DataLoader. Returns average loss and accuracy."""
         model.eval()
         total_loss, total_acc, n = 0.0, 0.0, 0
-        
+
         for x, y in loader:
             x, y = x.to(config.DEVICE), y.to(config.DEVICE)
             logits = model(x)
@@ -138,7 +144,7 @@ class GeneticAlgorithm:
             total_loss += loss.item() * batch_size
             total_acc += accuracy * batch_size
             n += batch_size
-            
+
         return total_loss / n, total_acc / n
     
     def _evaluate_individual(self, individual: creator.Individual) -> Tuple[float]:
@@ -163,7 +169,7 @@ class GeneticAlgorithm:
         best_val_acc = 0.0
         patience_counter = 0
         patience = 5
-        
+
         for epoch in range(config.EPOCHS):
             # Training phase
             model.train()
@@ -189,42 +195,63 @@ class GeneticAlgorithm:
                     break
 
         return (best_val_acc,)
-    
+
     def _mutate(self, individual: creator.Individual, indpb: float) -> Tuple[creator.Individual]:
         """Mutate individual by randomly changing hyperparameters."""
         if random.random() < indpb:
             individual["batch_size"] = self.toolbox.attr_batch_size()
+
         if random.random() < indpb:
             individual["optimizer"] = self.toolbox.attr_optimizer()
+            # Ensure consistency immediately after optimizer change
+            if self._requires_momentum(individual["optimizer"]):
+                if "momentum" not in individual:
+                    individual["momentum"] = self.toolbox.attr_momentum()
+            elif "momentum" in individual:
+                del individual["momentum"]
+
         if random.random() < indpb:
             individual["lr"] = self.toolbox.attr_lr()
+            
         if random.random() < indpb:
             individual["weight_decay"] = self.toolbox.attr_weight_decay()
-        
-        # Mutate momentum only for compatible optimizers
-        if self._requires_momentum(individual["optimizer"]):
-            if random.random() < indpb:
-                individual["momentum"] = self.toolbox.attr_momentum()
-        elif "momentum" in individual:
-            del individual["momentum"]  # Remove momentum if optimizer changed
+
+        # Mutate momentum only if it exists (which means optimizer requires it)
+        if "momentum" in individual and random.random() < indpb:
+            individual["momentum"] = self.toolbox.attr_momentum()
 
         return (individual,)
 
     def _crossover(self, ind1: creator.Individual, ind2: creator.Individual) -> Tuple[creator.Individual, creator.Individual]:
         """Perform crossover between two individuals."""
-        attributes = [key for key in ind1.keys() if key != "model"]
-        
-        # Filter valid attributes for crossover
-        valid_attrs = [
-            attr for attr in attributes 
-            if attr != "momentum" or (
-                self._requires_momentum(ind1["optimizer"]) and 
-                self._requires_momentum(ind2["optimizer"])
-            )
-        ]
+        attributes = set(ind1.keys()) | set(ind2.keys())
+        attributes.discard("model")
 
-        if valid_attrs:
-            attribute = random.choice(valid_attrs)
+        attribute = random.choice(list(attributes))
+
+        if attribute == "optimizer":
+            ind1["optimizer"], ind2["optimizer"] = ind2["optimizer"], ind1["optimizer"]
+            
+            # Ensure consistency for ind1
+            if self._requires_momentum(ind1["optimizer"]):
+                if "momentum" not in ind1:
+                    ind1["momentum"] = self.toolbox.attr_momentum()
+            elif "momentum" in ind1:
+                del ind1["momentum"]
+
+            # Ensure consistency for ind2
+            if self._requires_momentum(ind2["optimizer"]):
+                if "momentum" not in ind2:
+                    ind2["momentum"] = self.toolbox.attr_momentum()
+            elif "momentum" in ind2:
+                del ind2["momentum"]
+
+        elif attribute == "momentum":
+            # Only cross if both individuals have momentum
+            if "momentum" in ind1 and "momentum" in ind2:
+                ind1["momentum"], ind2["momentum"] = ind2["momentum"], ind1["momentum"]
+        
+        elif attribute in ind1 and attribute in ind2:
             ind1[attribute], ind2[attribute] = ind2[attribute], ind1[attribute]
 
         return ind1, ind2
@@ -237,13 +264,13 @@ class GeneticAlgorithm:
             best = max(aspirants, key=lambda ind: ind.fitness.values[0])
             selected.append(best)
         return selected
-    
+
     def run(self) -> Tuple[List[creator.Individual], tools.Logbook]:
         """Execute the genetic algorithm optimization process."""
         # Setup parallel evaluation
         pool = ThreadPool(multiprocessing.cpu_count())
         self.toolbox.register("map", pool.map)
-        
+
         # Initialize population and statistics
         population = self.toolbox.population(n=config.POPULATION_SIZE)
         hof = tools.HallOfFame(1)
@@ -271,7 +298,7 @@ class GeneticAlgorithm:
             pool.join()
 
         return population, logbook
-    
+
     def get_best_individuals(self, population: List[creator.Individual], k: int) -> List[creator.Individual]:
         """Get top k individuals from population."""
         return tools.selBest(population, k)

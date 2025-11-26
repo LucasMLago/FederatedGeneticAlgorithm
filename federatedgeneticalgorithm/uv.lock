@@ -313,6 +313,7 @@ dependencies = [
     { name = "deap" },
     { name = "flwr", extra = ["simulation"] },
     { name = "flwr-datasets" },
+    { name = "lion-pytorch" },
     { name = "torch" },
     { name = "torchvision" },
 ]
@@ -322,6 +323,7 @@ requires-dist = [
     { name = "deap", specifier = ">=1.4.3" },
     { name = "flwr", extras = ["simulation"], specifier = ">=1.23.0" },
     { name = "flwr-datasets", specifier = ">=0.5.0" },
+    { name = "lion-pytorch", specifier = ">=0.2.3" },
     { name = "torch", specifier = "==2.7.1" },
     { name = "torchvision", specifier = "==0.22.1" },
 ]
@@ -626,6 +628,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/9d/1a/23d855a702bb35a76faed5ae2ba3de57d323f48b1f6b17ee2176c4849463/kiwisolver-1.4.9-pp310-pypy310_pp73-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:0a590506f303f512dff6b7f75fd2fd18e16943efee932008fe7140e5fa91d80e", size = 80277, upload-time = "2025-08-10T21:27:40.129Z" },
     { url = "https://files.pythonhosted.org/packages/5a/5b/5239e3c2b8fb5afa1e8508f721bb77325f740ab6994d963e61b2b7abcc1e/kiwisolver-1.4.9-pp310-pypy310_pp73-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:e09c2279a4d01f099f52d5c4b3d9e208e91edcbd1a175c9662a8b16e000fece9", size = 77994, upload-time = "2025-08-10T21:27:41.181Z" },
     { url = "https://files.pythonhosted.org/packages/f9/1c/5d4d468fb16f8410e596ed0eac02d2c68752aa7dc92997fe9d60a7147665/kiwisolver-1.4.9-pp310-pypy310_pp73-win_amd64.whl", hash = "sha256:c9e7cdf45d594ee04d5be1b24dd9d49f3d1590959b2271fb30b5ca2b262c00fb", size = 73744, upload-time = "2025-08-10T21:27:42.254Z" },
+]
+
+[[package]]
+name = "lion-pytorch"
+version = "0.2.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "torch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/30/8b/b7afad06d3ace3eecf8d7b63f9f3bbab450039320fa63c7febaa5fe73765/lion_pytorch-0.2.3.tar.gz", hash = "sha256:42ba117ce857e9dd6c67c727e22e575671fd72e441900af137b05e7ee5c8fd88", size = 6990, upload-time = "2024-11-27T15:28:58.714Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3c/3a/17394e7c09a6796887d12435a7711f6bf6321efacd3e635fc69fcf6dfc70/lion_pytorch-0.2.3-py3-none-any.whl", hash = "sha256:a1f0cb6ddb46c1f5e130b985d2759c33c178195ef88b216621cb4177c6284f81", size = 6565, upload-time = "2024-11-27T15:28:57.859Z" },
 ]
 
 [[package]]

@@ -18,6 +18,7 @@ dependencies = [
     "deap>=1.4.3",
     "flwr-datasets>=0.5.0",
     "flwr[simulation]>=1.23.0",
+    "lion-pytorch>=0.2.3",
     "torch==2.7.1",
     "torchvision==0.22.1",
 ]
