@@ -8,8 +8,7 @@ from flwr.serverapp.strategy import FedAvg
 from flwr.common.logger import log
 from logging import INFO, WARNING
 
-from federatedgeneticalgorithm.task import Net
-from federatedgeneticalgorithm.strategy import FedAvgProbabilistic
+from federatedgeneticalgorithm.task import CNN
 
 # Create ServerApp
 app = ServerApp()
@@ -22,27 +21,14 @@ def main(grid: Grid, context: Context) -> None:
     # Read run config
     fraction_train: float = context.run_config["fraction-train"]
     num_rounds: int = context.run_config["num-server-rounds"]
-    lr: float = context.run_config["lr"]
-    client_probabilities_str: str = context.run_config.get(
-        "client-selection-probabilities",
-        None
-    )
-
-    # Parse client probabilities from string
-    client_probabilities = []
-    for prob in client_probabilities_str.split(","):
-        client_probabilities.append(float(prob))
 
     # Load global model
-    global_model = Net()
+    global_model = CNN()
     arrays = ArrayRecord(global_model.state_dict())
 
-    # Initialize strategy with probabilistic client selection
-    log(INFO, f"Using probabilistic client selection")
-    log(INFO, f"Client probabilities: {client_probabilities}")
-    strategy = FedAvgProbabilistic(
-        client_probabilities=client_probabilities,
-        fraction_train=fraction_train
+    # Initialize FedAvg strategy
+    strategy = FedAvg(
+        fraction_train=fraction_train,
     )
 
     log(INFO, "\n\n")
@@ -51,7 +37,6 @@ def main(grid: Grid, context: Context) -> None:
     result = strategy.start(
         grid=grid,
         initial_arrays=arrays,
-        # train_config=ConfigRecord({"lr": lr}),
         num_rounds=num_rounds,
     )
 

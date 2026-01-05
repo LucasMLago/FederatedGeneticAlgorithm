@@ -56,7 +56,7 @@ class GeneticAlgorithm:
         self.toolbox.register("evaluate", self._evaluate_individual)
         self.toolbox.register("mate", self._crossover)
         self.toolbox.register("mutate", self._mutate, indpb=config.MUTATION_PROB)
-        self.toolbox.register("select", self._tournament_select, tournsize=3)
+        self.toolbox.register("select", self._tournament_select, tournsize=config.TOURNAMENT_SIZE)
     
     def build_dataloaders(self, batch_size: int, seed: int) -> Tuple[DataLoader, DataLoader, DataLoader]:
         """Build train, validation and test dataloaders with consistent seeding."""
@@ -268,7 +268,8 @@ class GeneticAlgorithm:
     def run(self) -> Tuple[List[creator.Individual], tools.Logbook]:
         """Execute the genetic algorithm optimization process."""
         # Setup parallel evaluation
-        pool = ThreadPool(multiprocessing.cpu_count())
+        # pool = ThreadPool(multiprocessing.cpu_count())
+        pool = ThreadPool(config.NUM_WORKERS)
         self.toolbox.register("map", pool.map)
 
         # Initialize population and statistics

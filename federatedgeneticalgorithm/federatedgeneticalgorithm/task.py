@@ -13,11 +13,11 @@ from federatedgeneticalgorithm.genetic_algorithm import GeneticAlgorithm
 from typing import Optional, Literal, Tuple
 import numpy as np
 
-class Net(nn.Module):
+class CNN(nn.Module):
     """Simple CNN (LeNet/AlexNet based) model for MNIST classification."""
 
     def __init__(self):
-        super(Net, self).__init__()
+        super(CNN, self).__init__()
         # Convolutional layers
         self.conv1 = nn.Conv2d(1, 6, kernel_size=5, padding=2)
         self.conv2 = nn.Conv2d(6, 16, kernel_size=5, padding=2)
