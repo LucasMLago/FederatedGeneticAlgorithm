@@ -1,5 +1,3 @@
-"""FederatedGeneticAlgorithm: A Flower / PyTorch app."""
-
 import torch
 from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
 from flwr.clientapp import ClientApp
@@ -9,85 +7,66 @@ from federatedgeneticalgorithm.task import test as test_fn
 from federatedgeneticalgorithm.task import train as train_fn
 from federatedgeneticalgorithm.task import get_partition
 from federatedgeneticalgorithm.genetic_algorithm import GeneticAlgorithm
+from federatedgeneticalgorithm.config import config
 
-import sys
-sys.path.append("../")
+from logging import INFO
+from flwr.common.logger import log
 
-from config import config
-
-# Flower ClientApp
 app = ClientApp()
 
-CLIENT_STATE: dict = {"batch_size": None}
+# Persist GA instance per partition to maintain population history across rounds
+CLIENT_GA_instances = {}
+CLIENT_STATE = {}
+
 
 @app.train()
 def train(msg: Message, context: Context):
-    """Train the model on local data."""
-
-    # Load the model and initialize it with the received weights
-    model = CNN()
-    model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+    """Flow: load global weights -> run 1 GA update -> train locally -> return weights + metrics."""
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
-    
-    # Get IID partitions of train and test datasets
+
+    model = CNN()
+    global_state_dict = msg.content["arrays"].to_torch_state_dict()
+    model.load_state_dict(global_state_dict)
+
+    device = torch.device(config.DEVICE)
+
     local_trainset = get_partition(trainset, partition_id, num_partitions, seed=config.SEED)
     local_testset = get_partition(testset, partition_id, num_partitions, seed=config.SEED)
 
-    # Run genetic algorithm to find best hyperparameters
-    print(f"[Client {partition_id}] Local training set size: {len(local_trainset)}")
-    print(f"[Client {partition_id}] Local test set size: {len(local_testset)}")
-    print(f"[Client {partition_id}] Running genetic algorithm to optimize hyperparameters...")
-    
-    ga = GeneticAlgorithm(model, local_trainset, local_testset)
-    pop, log = ga.run()
-    best_individual = ga.get_best_individuals(pop, k=1)[0]
-    print(f"[Client {partition_id}] Genetic algorithm completed.")
-    print(f"[Client {partition_id}] best individual fitness: {log.select('max')[-1]:.4f}")
+    log(INFO, f"[Client {partition_id}] Starting GA Round...")
 
-    
-    print(f"[Client {partition_id}] Best hyperparameters found:")
-    print(f"  - batch_size: {best_individual['batch_size']}")
-    print(f"  - optimizer: {best_individual['optimizer']}")
-    print(f"  - lr: {best_individual['lr']}")
-    print(f"  - weight_decay: {best_individual['weight_decay']}")
-    if 'momentum' in best_individual:
-        print(f"  - momentum: {best_individual['momentum']}")
+    if partition_id not in CLIENT_GA_instances:
+        log(INFO, f"[Client {partition_id}] Initializing new Genetic Algorithm instance.")
+        CLIENT_GA_instances[partition_id] = GeneticAlgorithm(model, local_trainset, local_testset)
 
-    # Extract best hyperparameters
-    batch_size = best_individual["batch_size"]
-    optimizer = best_individual["optimizer"]
-    lr = best_individual["lr"]
-    weight_decay = best_individual["weight_decay"]
-    momentum = best_individual.get("momentum", None)
+    # Run incremental GA to refine hyperparameters before local training
+    ga = CLIENT_GA_instances[partition_id]
+    best_hp = ga.run_round_updates(global_state_dict=global_state_dict)
 
-    # Reload initial weights (GA already trained, we want to train from server weights)
-    model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
-    model.to(device)
-
-    # Build dataloaders with optimized batch size
-    trainloader, valloader, _ = build_dataloaders(
-        local_trainset, 
-        local_testset, 
-        batch_size=batch_size, 
-        seed=config.SEED
+    log(
+        INFO,
+        f"[Client {partition_id}] Best HP selected: batch={best_hp['batch_size']}, lr={best_hp['lr']}, opt={best_hp['optimizer']}",
     )
 
-    # Update client state
-    CLIENT_STATE.update({
-        "batch_size": batch_size,
-        "optimizer": optimizer,
-        "lr": lr,
-        "weight_decay": weight_decay,
-        "momentum": momentum,
-        "partition_id": partition_id,
-        "num_partitions": num_partitions,
-    })
+    batch_size = best_hp["batch_size"]
+    optimizer = best_hp["optimizer"]
+    lr = best_hp["lr"]
+    weight_decay = best_hp["weight_decay"]
+    momentum = best_hp.get("momentum", 0.0)
 
-    # Train with optimized hyperparameters
-    local_epochs = context.run_config["local-epochs"]
+    CLIENT_STATE["batch_size"] = batch_size
+
+    model.load_state_dict(global_state_dict)
+    model.to(device)
+
+    trainloader, valloader, _ = build_dataloaders(
+        local_trainset, local_testset, batch_size=batch_size, seed=config.SEED
+    )
+
+    local_epochs = context.run_config.get("local-epochs", 1)
+
+    # Final local training using the optimized hyperparameters
     train_metrics = train_fn(
         model,
         trainloader,
@@ -97,14 +76,16 @@ def train(msg: Message, context: Context):
         optimizer,
         weight_decay,
         momentum,
+        mu=0.0,
+        global_state_dict=global_state_dict,
     )
-    
-    # Validate
+
     val_loss, val_acc = test_fn(model, valloader, device)
 
-    print(f"[Client {partition_id}] Training completed:")
-    print(f"  - Train loss: {train_metrics['loss']:.4f}, Train acc: {train_metrics['accuracy']:.4f}")
-    print(f"  - Val loss: {val_loss:.4f}, Val acc: {val_acc:.4f}")
+    log(
+        INFO,
+        f"[Client {partition_id}] Training completed: Loss={train_metrics['loss']:.4f}, Acc={train_metrics['accuracy']:.4f} | Val Loss={val_loss:.4f}, Val Acc={val_acc:.4f}",
+    )
 
     model_record = ArrayRecord(model.state_dict())
     metrics = {
@@ -113,6 +94,8 @@ def train(msg: Message, context: Context):
         "val-loss": val_loss,
         "val-accuracy": val_acc,
         "num-examples": int(len(trainloader.dataset)),
+        "hp_lr": float(lr),
+        "hp_batch_size": int(batch_size),
     }
     metric_record = MetricRecord(metrics)
     content = RecordDict({"arrays": model_record, "metrics": metric_record})
@@ -121,9 +104,7 @@ def train(msg: Message, context: Context):
 
 @app.evaluate()
 def evaluate(msg: Message, context: Context):
-    """Evaluate the model on local data."""
-
-    # Load the model and initialize it with the received weights
+    """Evaluate the model on the local test partition and return aggregatable metrics."""
     model = CNN()
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -131,19 +112,18 @@ def evaluate(msg: Message, context: Context):
 
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
-    
-    # Get IID partitions
+
     local_trainset = get_partition(trainset, partition_id, num_partitions, seed=config.SEED)
     local_testset = get_partition(testset, partition_id, num_partitions, seed=config.SEED)
 
     batch_size = CLIENT_STATE.get("batch_size") or 32
     _, _, testloader = build_dataloaders(local_trainset, local_testset, batch_size=batch_size, seed=config.SEED)
 
-    eval_loss, eval_acc = test_fn(
-        model,
-        testloader,
-        device,
-    )
+    log(INFO, f"[Client {partition_id}] Evaluating model on local test set (Batch Size: {batch_size})")
+
+    eval_loss, eval_acc = test_fn(model, testloader, device)
+
+    log(INFO, f"[Client {partition_id}] Evaluation result: Loss={eval_loss:.4f}, Acc={eval_acc:.4f}")
 
     metrics = {
         "eval-loss": eval_loss,

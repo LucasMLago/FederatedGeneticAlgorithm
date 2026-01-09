@@ -1,24 +1,22 @@
-"""FederatedGeneticAlgorithm: A Flower / PyTorch app."""
-
 import torch
 import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 
+from lion_pytorch import Lion
+
 from torch.utils.data import Dataset, DataLoader, random_split, Subset
 
-from federatedgeneticalgorithm.genetic_algorithm import GeneticAlgorithm
-
-from typing import Optional, Literal, Tuple
+from typing import Optional, Literal, Tuple, Dict
 import numpy as np
 
+
 class CNN(nn.Module):
-    """Simple CNN (LeNet/AlexNet based) model for MNIST classification."""
+    """Small CNN for MNIST (input 1x28x28, output 10 classes)."""
 
     def __init__(self):
         super(CNN, self).__init__()
-        # Convolutional layers
         self.conv1 = nn.Conv2d(1, 6, kernel_size=5, padding=2)
         self.conv2 = nn.Conv2d(6, 16, kernel_size=5, padding=2)
 
@@ -26,7 +24,6 @@ class CNN(nn.Module):
         self.pool = nn.MaxPool2d(2, 2)
         self.dropout = nn.Dropout(0.2)
 
-        # Fully coonnected layers
         self.fc1 = nn.Linear(16 * 7 * 7, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 10)
@@ -37,121 +34,117 @@ class CNN(nn.Module):
         x = F.relu(self.bn(self.conv2(x)))
         x = self.pool(x)
         x = self.dropout(x)
-        
-        x = torch.flatten(x, 1)  # flatten all dimensions except batch
+
+        x = torch.flatten(x, 1)
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = F.relu(self.fc2(x))
         return self.fc3(x)
 
 
-fds = None  # Cache FederatedDataset
+fds = None
 
-transform = transforms.Compose([
-    transforms.ToTensor(), 
-    transforms.Normalize((0.5,), (0.5,))
-])
+transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
 
-trainset = torchvision.datasets.MNIST(
-        root="../data",
-        train=True,
-        transform=transform,
-        download=True
-    )
+trainset = torchvision.datasets.MNIST(root="../data", train=True, transform=transform, download=True)
+testset = torchvision.datasets.MNIST(root="../data", train=False, transform=transform, download=True)
 
-testset = torchvision.datasets.MNIST(
-    root="../data",
-    train=False,
-    transform=transform,
-    download=True
-)
-
-def genetic_algorithm(model: nn.Module, trainset: Dataset, testset: Dataset):
-    ga = GeneticAlgorithm(model, trainset, testset)
-    pop, log = ga.run()
-    best_individual = ga.get_best_individuals(pop, k=1)[0]
-    return best_individual
 
 def get_partition(dataset: Dataset, partition_id: int, num_partitions: int, seed: int = 42) -> Subset:
-    """Return an IID partition of a dataset."""
-    rng = np.random.default_rng(seed)    
+    """Return an IID dataset partition (the last partition gets the remainder)."""
+    rng = np.random.default_rng(seed)
     indices = np.arange(len(dataset))
     rng.shuffle(indices)
 
     partition_size = len(dataset) // num_partitions
     start_idx = partition_id * partition_size
-    
-    # Last partition gets remaining samples
-    if partition_id == num_partitions - 1:
-        end_idx = len(dataset)
-    else:
-        end_idx = start_idx + partition_size
+    end_idx = len(dataset) if partition_id == num_partitions - 1 else start_idx + partition_size
 
-    partition_indices = indices[start_idx:end_idx].tolist()
-    
-    return Subset(dataset, partition_indices)
+    return Subset(dataset, indices[start_idx:end_idx].tolist())
 
-def build_dataloaders(trainset: Dataset, testset: Dataset, batch_size: int, seed: int) -> Tuple[DataLoader, DataLoader, DataLoader]:
+
+def build_dataloaders(
+    trainset: Dataset, testset: Dataset, batch_size: int, seed: int
+) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    """Create train/val (80/20 split) and test DataLoaders."""
     train_size = int(0.8 * len(trainset))
     val_size = len(trainset) - train_size
-    train_subset, val_subset = random_split(trainset, [train_size, val_size], generator=torch.Generator().manual_seed(seed))
-    
-    train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, num_workers=0, generator=torch.Generator().manual_seed(seed))
-    val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False, num_workers=0, generator=torch.Generator().manual_seed(seed))
-    test_loader = DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=0, generator=torch.Generator().manual_seed(seed))
+    gen = torch.Generator().manual_seed(seed)
+    train_subset, val_subset = random_split(trainset, [train_size, val_size], generator=gen)
 
+    train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, num_workers=0, generator=gen)
+    val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False, num_workers=0, generator=gen)
+    test_loader = DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=0, generator=gen)
     return train_loader, val_loader, test_loader
 
-def train(net: nn.Module, 
-          trainloader: DataLoader, 
-          epochs: int, 
-          lr: float, 
-          device: str, 
-          optimizer: Literal["adam", "rmsprop", "sgd"], 
-          weight_decay: float, 
-          momentum: Optional[float] = None
-        ) -> dict:
-    
-    """Train the model on the training set."""
+
+def train(
+    net: nn.Module,
+    trainloader: DataLoader,
+    epochs: int,
+    lr: float,
+    device: str,
+    optimizer: Literal["adam", "adamw", "radam", "sgd", "lion"],
+    weight_decay: float,
+    momentum: Optional[float] = None,
+    mu: float = 0.0,
+    global_state_dict: Optional[Dict[str, torch.Tensor]] = None,
+) -> dict:
+    """Train the model; if `mu>0`, add a proximal term w.r.t. `global_state_dict`."""
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
 
+    global_params = {}
+    if mu > 0 and global_state_dict is not None:
+        global_params = {k: v.to(device) for k, v in global_state_dict.items()}
+
     if optimizer == "adam":
         local_optimizer = torch.optim.Adam(net.parameters(), lr=lr, weight_decay=weight_decay)
-    elif optimizer == "rmsprop":
-        local_optimizer = torch.optim.RMSprop(net.parameters(), lr=lr, weight_decay=weight_decay, momentum=momentum)
+    elif optimizer == "adamw":
+        local_optimizer = torch.optim.AdamW(net.parameters(), lr=lr, weight_decay=weight_decay)
+    elif optimizer == "radam" and hasattr(torch.optim, "RAdam"):
+        local_optimizer = torch.optim.RAdam(net.parameters(), lr=lr, weight_decay=weight_decay)
     elif optimizer == "sgd":
         local_optimizer = torch.optim.SGD(net.parameters(), lr=lr, weight_decay=weight_decay, momentum=momentum)
+    elif optimizer == "lion":
+        local_optimizer = Lion(net.parameters(), lr=lr, weight_decay=weight_decay)
+    else:
+        raise ValueError(f"Unsupported optimizer: {optimizer}")
 
     net.train()
     running_loss = 0.0
     correct = 0
     total = 0
-    
+
     for _ in range(epochs):
         for x, y in trainloader:
             x, y = x.to(device), y.to(device)
             local_optimizer.zero_grad()
             logits = net(x)
+
             loss = criterion(logits, y)
+            
+            # FedProx: Add proximal term to constrain local updates to global weights
+            if mu > 0 and global_params:
+                proximal_term = 0.0
+                for name, param in net.named_parameters():
+                    if name in global_params:
+                        proximal_term += (param - global_params[name]).norm(2) ** 2
+                loss += (mu / 2) * proximal_term
+
             loss.backward()
             local_optimizer.step()
+
             running_loss += loss.item() * y.size(0)
             predicted = torch.argmax(logits, dim=1)
             correct += predicted.eq(y).sum().item()
             total += y.size(0)
-    
-    avg_trainloss = running_loss / total
-    avg_accuracy = correct / total
-    
-    return {
-        "loss": avg_trainloss,
-        "accuracy": avg_accuracy
-    }
+
+    return {"loss": running_loss / total, "accuracy": correct / total}
 
 
-def test(net: nn.Module, testloader: DataLoader, device: str):
-    """Validate the model on the test set."""
+def test(net: nn.Module, testloader: DataLoader, device: str) -> Tuple[float, float]:
+    """Evaluate on `testloader` and return (avg_loss, accuracy)."""
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss()
     correct, loss = 0, 0.0
@@ -161,8 +154,7 @@ def test(net: nn.Module, testloader: DataLoader, device: str):
             logits = net(x)
             loss_batch = criterion(logits, y)
             predicted = torch.argmax(logits, dim=1)
-            accuracy = (predicted.eq(y).sum().item()) / y.shape[0]
-            correct += accuracy * y.size(0)
+            correct += (predicted.eq(y).sum().item()) * 1.0
             loss += loss_batch.item() * y.size(0)
     avg_loss = loss / len(testloader.dataset)
     accuracy = correct / len(testloader.dataset)

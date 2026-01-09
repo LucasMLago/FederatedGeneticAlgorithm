@@ -1,35 +1,29 @@
-import random
-import torch.optim as optim
-from typing import List, Dict, Tuple, Optional
-from deap import base, creator, tools, algorithms
-import copy
+from typing import List, Dict, Tuple, Union
 
-import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader, random_split
-
-from lion_pytorch import Lion
-
-import multiprocessing
-from multiprocessing.pool import ThreadPool
-
+from deap import base, creator, tools
 import numpy as np
+import random
 
-import sys
-sys.path.append("../")
-from config import config
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader, Subset
 
-creator.create("FitnessMax", base.Fitness, weights=(1.0,))
-creator.create("Individual", dict, fitness=creator.FitnessMax)
+from federatedgeneticalgorithm.task import train as train_fn
+from federatedgeneticalgorithm.surrogate_model import SurrogateModel
+from federatedgeneticalgorithm.config import config
+
+# DEAP type definitions
+if not hasattr(creator, "FitnessMax"):
+    creator.create("FitnessMax", base.Fitness, weights=(1.0,)) # Maximization objective
+if not hasattr(creator, "Individual"):
+    creator.create("Individual", dict, fitness=creator.FitnessMax)
 
 HYPERPARAMS = {
-    "batch_sizes": [16, 32, 64, 128, 256, 512, 1024],
+    "batch_sizes": [16, 32, 64, 128, 256, 512],
     "optimizers": ["adam", "adamw", "radam", "lion", "sgd"],
-    "learning_rates": [0.001, 0.003, 0.005, 0.01, 0.03, 0.05],
+    "learning_rates": [0.0005, 0.001, 0.003, 0.005, 0.01],
     "weight_decays": [0.0, 1e-5, 1e-4, 1e-3],
-    "momentums": [0.0, 0.3, 0.5, 0.7, 0.9, 0.99],
+    "momentums": [0.0, 0.5, 0.7, 0.9],
 }
-
 
 class GeneticAlgorithm:
     def __init__(self, model: nn.Module, trainset: Dataset, testset: Dataset):
@@ -37,11 +31,18 @@ class GeneticAlgorithm:
         self.model = model
         self.trainset = trainset
         self.testset = testset
+
+        # Persist GA state across federated rounds
+        self.population = []
+        self.history = []
+        self.elite = []
+        self.round_counter = 0
+
+        self.surrogate = SurrogateModel(HYPERPARAMS)
         self._setup_toolbox()
 
     def _setup_toolbox(self) -> None:
-        """Configure DEAP toolbox with genetic operators."""
-        # Attribute generators
+        """Register DEAP operators and keep optimizer/momentum constraints consistent."""
         self.toolbox.register("attr_batch_size", random.choice, HYPERPARAMS["batch_sizes"])
         self.toolbox.register("attr_optimizer", random.choice, HYPERPARAMS["optimizers"])
         self.toolbox.register("attr_lr", random.choice, HYPERPARAMS["learning_rates"])
@@ -53,157 +54,39 @@ class GeneticAlgorithm:
         self.toolbox.register("population", tools.initRepeat, list, self.toolbox.individual)
 
         # Genetic operators
-        self.toolbox.register("evaluate", self._evaluate_individual)
         self.toolbox.register("mate", self._crossover)
         self.toolbox.register("mutate", self._mutate, indpb=config.MUTATION_PROB)
         self.toolbox.register("select", self._tournament_select, tournsize=config.TOURNAMENT_SIZE)
-    
-    def build_dataloaders(self, batch_size: int, seed: int) -> Tuple[DataLoader, DataLoader, DataLoader]:
-        """Build train, validation and test dataloaders with consistent seeding."""
-        train_size = int(0.8 * len(self.trainset))
-        val_size = len(self.trainset) - train_size
 
-        generator = torch.Generator().manual_seed(seed)
-        train_subset, val_subset = random_split(self.trainset, [train_size, val_size], generator=generator)
-
-        train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, generator=generator)
-        val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False, generator=generator)
-        test_loader = DataLoader(self.testset, batch_size=batch_size, shuffle=False, generator=generator)
-
-        return train_loader, val_loader, test_loader
-
-    def _create_individual(self) -> Dict:
+    def _create_individual(self) -> creator.Individual:
         """Create a random individual (hyperparameter configuration)."""
         optimizer_type = self.toolbox.attr_optimizer()
 
-        # Create a recursive copy of the model to avoid shared references
-        model_copy = copy.deepcopy(self.model)
-
         individual = {
-            "model": model_copy,
             "batch_size": self.toolbox.attr_batch_size(),
             "optimizer": optimizer_type,
             "lr": self.toolbox.attr_lr(),
             "weight_decay": self.toolbox.attr_weight_decay(),
         }
 
-        # Add momentum only for optimizers that support it
         if self._requires_momentum(optimizer_type):
             individual["momentum"] = self.toolbox.attr_momentum()
 
-        return individual
+        return creator.Individual(individual)
 
     @staticmethod
     def _requires_momentum(optimizer_type: str) -> bool:
-        """Check if optimizer requires momentum parameter."""
-        return optimizer_type == "sgd"
-
-    def _create_optimizer(
-        self, 
-        model: nn.Module, 
-        optimizer_type: str, 
-        lr: float, 
-        weight_decay: float, 
-        momentum: Optional[float] = None
-    ) -> optim.Optimizer:
-        """Factory method to create optimizer instance."""
-        params = model.parameters()
-
-        if optimizer_type == "adam":
-            return optim.Adam(params, lr=lr, weight_decay=weight_decay)
-        elif optimizer_type == "adamw":
-            return optim.AdamW(params, lr=lr, weight_decay=weight_decay)
-        elif optimizer_type == "radam":
-            return optim.RAdam(params, lr=lr, weight_decay=weight_decay)
-        elif optimizer_type == "lion":
-            return Lion(params, lr=lr, weight_decay=weight_decay)
-        elif optimizer_type == "sgd":
-            return optim.SGD(params, lr=lr, weight_decay=weight_decay, momentum=momentum)
-        else:
-            raise ValueError(f"Unknown optimizer type: {optimizer_type}")
-
-    @staticmethod
-    def _calculate_accuracy(logits: torch.Tensor, labels: torch.Tensor) -> float:
-        """Calculate classification accuracy."""
-        predicted = torch.argmax(logits, dim=1).cpu()
-        return (predicted.eq(labels).sum().item()) / labels.shape[0]
-
-    @torch.no_grad()
-    def evaluate(self, model: nn.Module, loader: DataLoader, criterion: nn.Module) -> Tuple[float, float]:
-        """Evaluate model on given DataLoader. Returns average loss and accuracy."""
-        model.eval()
-        total_loss, total_acc, n = 0.0, 0.0, 0
-
-        for x, y in loader:
-            x, y = x.to(config.DEVICE), y.to(config.DEVICE)
-            logits = model(x)
-            loss = criterion(logits, y)
-            accuracy = self._calculate_accuracy(logits, y.cpu())
-
-            batch_size = x.size(0)
-            total_loss += loss.item() * batch_size
-            total_acc += accuracy * batch_size
-            n += batch_size
-
-        return total_loss / n, total_acc / n
-    
-    def _evaluate_individual(self, individual: creator.Individual) -> Tuple[float]:
-        """Train and evaluate a model with given hyperparameters."""
-        # Extract hyperparameters
-        model: nn.Module = individual["model"]
-        batch_size: int = individual["batch_size"]
-        optimizer_type: str = individual["optimizer"]
-        lr: float = individual["lr"]
-        weight_decay: float = individual["weight_decay"]
-        momentum: float = individual.get("momentum")
-
-        # Reset model to initial state before training
-        model.load_state_dict(self.model.state_dict())
-        model.to(config.DEVICE)
-        
-        criterion = nn.CrossEntropyLoss()
-        optimizer = self._create_optimizer(model, optimizer_type, lr, weight_decay, momentum)
-        train_loader, val_loader, _ = self.build_dataloaders(batch_size, config.SEED)
-
-        # Training loop with early stopping
-        best_val_acc = 0.0
-        patience_counter = 0
-        patience = 5
-
-        for epoch in range(config.EPOCHS):
-            # Training phase
-            model.train()
-            for x, y in train_loader:
-                x, y = x.to(config.DEVICE), y.to(config.DEVICE)
-                
-                optimizer.zero_grad()
-                logits = model(x)
-                loss = criterion(logits, y)
-                loss.backward()
-                optimizer.step()
-
-            # Validation
-            val_loss, val_acc = self.evaluate(model, val_loader, criterion)
-            
-            # Early stopping check
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
-                patience_counter = 0
-            else:
-                patience_counter += 1
-                if patience_counter >= patience:
-                    break
-
-        return (best_val_acc,)
+        """Return True if the optimizer uses a momentum hyperparameter."""
+        return optimizer_type in ["sgd", "rmsprop"]
 
     def _mutate(self, individual: creator.Individual, indpb: float) -> Tuple[creator.Individual]:
-        """Mutate individual by randomly changing hyperparameters."""
+        """Mutate an individual by randomly changing hyperparameters."""
         if random.random() < indpb:
             individual["batch_size"] = self.toolbox.attr_batch_size()
 
         if random.random() < indpb:
             individual["optimizer"] = self.toolbox.attr_optimizer()
-            # Ensure consistency immediately after optimizer change
+            # Ensure momentum attribute is consistent with the new optimizer choice
             if self._requires_momentum(individual["optimizer"]):
                 if "momentum" not in individual:
                     individual["momentum"] = self.toolbox.attr_momentum()
@@ -212,94 +95,182 @@ class GeneticAlgorithm:
 
         if random.random() < indpb:
             individual["lr"] = self.toolbox.attr_lr()
-            
+
         if random.random() < indpb:
             individual["weight_decay"] = self.toolbox.attr_weight_decay()
 
-        # Mutate momentum only if it exists (which means optimizer requires it)
         if "momentum" in individual and random.random() < indpb:
             individual["momentum"] = self.toolbox.attr_momentum()
 
         return (individual,)
 
     def _crossover(self, ind1: creator.Individual, ind2: creator.Individual) -> Tuple[creator.Individual, creator.Individual]:
-        """Perform crossover between two individuals."""
+        """Perform crossover between two individuals, handling dependent attributes."""
         attributes = set(ind1.keys()) | set(ind2.keys())
-        attributes.discard("model")
+
+        if not attributes:
+            return ind1, ind2
 
         attribute = random.choice(list(attributes))
 
         if attribute == "optimizer":
             ind1["optimizer"], ind2["optimizer"] = ind2["optimizer"], ind1["optimizer"]
-            
-            # Ensure consistency for ind1
-            if self._requires_momentum(ind1["optimizer"]):
-                if "momentum" not in ind1:
-                    ind1["momentum"] = self.toolbox.attr_momentum()
-            elif "momentum" in ind1:
-                del ind1["momentum"]
 
-            # Ensure consistency for ind2
-            if self._requires_momentum(ind2["optimizer"]):
-                if "momentum" not in ind2:
-                    ind2["momentum"] = self.toolbox.attr_momentum()
-            elif "momentum" in ind2:
-                del ind2["momentum"]
+            for ind in [ind1, ind2]:
+                if self._requires_momentum(ind["optimizer"]):
+                    if "momentum" not in ind: ind["momentum"] = self.toolbox.attr_momentum()
+                elif "momentum" in ind:
+                    del ind["momentum"]
 
         elif attribute == "momentum":
-            # Only cross if both individuals have momentum
             if "momentum" in ind1 and "momentum" in ind2:
                 ind1["momentum"], ind2["momentum"] = ind2["momentum"], ind1["momentum"]
-        
+
         elif attribute in ind1 and attribute in ind2:
             ind1[attribute], ind2[attribute] = ind2[attribute], ind1[attribute]
 
         return ind1, ind2
 
     def _tournament_select(self, population: List[creator.Individual], k: int, tournsize: int) -> List[creator.Individual]:
-        """Select k individuals using tournament selection."""
-        selected = []
-        for _ in range(k):
-            aspirants = random.sample(population, tournsize)
-            best = max(aspirants, key=lambda ind: ind.fitness.values[0])
-            selected.append(best)
-        return selected
+        """Select k individuals via tournament selection (fallback if no valid fitness is available)."""
+        valid_pop = [ind for ind in population if ind.fitness.valid]
+        if not valid_pop:
+            return random.sample(population, k)
+        return tools.selTournament(valid_pop, k, tournsize)
 
-    def run(self) -> Tuple[List[creator.Individual], tools.Logbook]:
-        """Execute the genetic algorithm optimization process."""
-        # Setup parallel evaluation
-        # pool = ThreadPool(multiprocessing.cpu_count())
-        pool = ThreadPool(config.NUM_WORKERS)
-        self.toolbox.register("map", pool.map)
+    def _evaluate_rung(
+        self,
+        individual: Union[creator.Individual, Dict],
+        global_state: Dict,
+        epochs: int,
+        subset_ratio: float,
+        mu: float,
+    ) -> float:
+        """Evaluate HPs at a given fidelity (epochs/subset); returns accuracy."""
+        self.model.load_state_dict(global_state)
 
-        # Initialize population and statistics
-        population = self.toolbox.population(n=config.POPULATION_SIZE)
-        hof = tools.HallOfFame(1)
+        dataset_len = len(self.trainset)
+        subset_size = max(1, int(dataset_len * subset_ratio))
+        indices = np.random.choice(dataset_len, subset_size, replace=False)
+        subset = Subset(self.trainset, indices)
 
-        stats = tools.Statistics(lambda ind: ind.fitness.values)
-        stats.register("avg", np.mean)
-        stats.register("std", np.std)
-        stats.register("min", np.min)
-        stats.register("max", np.max)
+        loader = DataLoader(
+            subset,
+            batch_size=individual["batch_size"],
+            shuffle=True,
+            num_workers=0
+        )
 
-        # Run evolution
-        try:
-            population, logbook = algorithms.eaSimple(
-                population,
-                self.toolbox,
-                cxpb=config.CROSSOVER_PROB,
-                mutpb=config.MUTATION_PROB,
-                ngen=config.NUMBER_OF_GENERATIONS,
-                stats=stats,
-                halloffame=hof,
-                verbose=False,
+        metrics = train_fn(
+            self.model,
+            loader,
+            epochs=epochs,
+            lr=individual["lr"],
+            device=config.DEVICE,
+            optimizer=individual["optimizer"],
+            weight_decay=individual["weight_decay"],
+            momentum=individual.get("momentum", 0.0),
+            mu=mu, # Controls FedProx regularization strength
+            global_state_dict=global_state
+        )
+        return metrics["accuracy"]
+
+    def run_round_updates(self, global_state_dict: Dict) -> Dict:
+        """Run one incremental GA iteration: generate candidates, evaluate, and update elite/surrogate."""
+        self.round_counter += 1
+        candidates_pool = []
+
+        # 1. Generate candidate pool (Elite + Offspring)
+        # Warm start from elite when available
+        if not self.population:
+            if self.elite:
+                for elite_entry in self.elite[: min(3, len(self.elite))]:
+                    candidates_pool.append(creator.Individual(elite_entry["hp"]))
+                remaining = config.POPULATION_SIZE - len(candidates_pool)
+                candidates_pool.extend(self.toolbox.population(n=remaining))
+                self.population = candidates_pool
+            else:
+                self.population = self.toolbox.population(n=config.POPULATION_SIZE)
+
+        offspring_size = max(3, config.POPULATION_SIZE // 2)
+        offspring = self.toolbox.select(self.population, offspring_size)
+        offspring = list(map(self.toolbox.clone, offspring))
+
+        for child1, child2 in zip(offspring[::2], offspring[1::2]):
+            if random.random() < config.CROSSOVER_PROB:
+                self.toolbox.mate(child1, child2)
+                del child1.fitness.values
+                del child2.fitness.values
+
+        for mutant in offspring:
+            if random.random() < config.MUTATION_PROB:
+                self.toolbox.mutate(mutant)
+                del mutant.fitness.values
+
+        candidates_pool.extend(offspring)
+
+        if self.elite:
+            for elite_entry in self.elite[:2]:
+                elite_ind = creator.Individual(elite_entry["hp"])
+                elite_ind.fitness.values = (elite_entry["fitness"],)
+                candidates_pool.append(elite_ind)
+
+        # 2. Inject candidates predicted by Surrogate Model (if trained)
+        if self.surrogate.ready:
+            trials = [self._create_individual() for _ in range(30)]
+            scores = self.surrogate.predict_batch(trials)
+            top_indices = np.argsort(scores)[-2:]
+            for idx in top_indices:
+                candidates_pool.append(trials[idx])
+
+        self.population[:] = candidates_pool[: config.POPULATION_SIZE]
+
+        # 3. Low-fidelity evaluation (Rung 0) on a subset of candidates
+        num_to_eval = min(len(candidates_pool), config.NUM_CANDIDATES_TO_EVALUATE)
+        selection_to_eval = random.sample(candidates_pool, k=num_to_eval)
+        rung0_results = []
+
+        for ind in selection_to_eval:
+            acc = self._evaluate_rung(
+                ind,
+                global_state_dict,
+                config.RUNG0_EPOCHS,
+                config.RUNG0_SUBSET_RATIO,
+                config.RUNG0_MU,
             )
-        finally:
-            pool.close()
-            pool.join()
+            ind.fitness.values = (acc,)
 
-        return population, logbook
+            entry = {"hp": dict(ind), "fitness": acc, "rung": 0}
+            self.history.append(entry)
+            rung0_results.append(entry)
 
-    def get_best_individuals(self, population: List[creator.Individual], k: int) -> List[creator.Individual]:
-        """Get top k individuals from population."""
-        return tools.selBest(population, k)
+        # 4. High-fidelity evaluation (Rung 1) used to promote the best candidate
+        if rung0_results:
+            best_rung0 = max(rung0_results, key=lambda x: x["fitness"])
+
+            acc_r1 = self._evaluate_rung(
+                best_rung0["hp"],
+                global_state_dict,
+                config.RUNG1_EPOCHS,
+                1.0,
+                config.RUNG1_MU,
+            )
+
+            entry_r1 = {"hp": best_rung0["hp"], "fitness": acc_r1, "rung": 1}
+            self.history.append(entry_r1)
+
+            self.elite.append(entry_r1)
+            self.elite.sort(key=lambda x: x["fitness"], reverse=True)
+            self.elite = self.elite[:3]
+
+        # 5. Periodically retrain the surrogate model using accumulated history
+        if self.round_counter % config.SURROGATE_RETRAIN_INTERVAL == 0 and len(self.history) >= 5:
+            self.surrogate.update(self.history)
+
+        if self.elite:
+            return self.elite[0]["hp"]
+        elif rung0_results:
+            best_current = max(rung0_results, key=lambda x: x["fitness"])
+            return best_current["hp"]
+        else:
+            return selection_to_eval[0]
