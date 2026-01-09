@@ -16,4 +16,15 @@ MUTATION_PROB = 0.2
 TOURNAMENT_SIZE = 3
 POPULATION_SIZE = 10
 NUMBER_OF_GENERATIONS = 5
-NUM_WORKERS = multiprocessing.cpu_count() // 2  # Use half of available CPUs
+NUM_WORKERS = multiprocessing.cpu_count() // 2
+
+# Multi-fidelity & Proximal Config
+RUNG0_EPOCHS = 2
+RUNG0_SUBSET_RATIO = 0.6
+RUNG0_MU = 0.5
+
+RUNG1_EPOCHS = 3
+RUNG1_MU = 0.05
+
+SURROGATE_RETRAIN_INTERVAL = 3
+NUM_CANDIDATES_TO_EVALUATE = 5
