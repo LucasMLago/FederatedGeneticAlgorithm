@@ -5,6 +5,8 @@ from sklearn.preprocessing import OneHotEncoder
 
 import numpy as np
 
+from federatedgeneticalgorithm.config import config
+
 
 class SurrogateModel:
     """Simple surrogate (RandomForest) predicting fitness from a fixed numeric Hyper Parameter vector."""
@@ -14,10 +16,9 @@ class SurrogateModel:
         self.encoder = None
         self.ready = False
 
-        if RandomForestRegressor:
-            self.model = RandomForestRegressor(n_estimators=10, random_state=0)
-            self.encoder = OneHotEncoder(sparse_output=False, handle_unknown="ignore")
-            self.encoder.fit(np.array(hyperparams_config["optimizers"]).reshape(-1, 1))
+        self.model = RandomForestRegressor(n_estimators=10, random_state=config.SEED)
+        self.encoder = OneHotEncoder(sparse_output=False, handle_unknown="ignore")
+        self.encoder.fit(np.array(hyperparams_config["optimizers"]).reshape(-1, 1))
 
     def update(self, history: List[Dict]) -> None:
         """Retrain the surrogate using the collected history (requires a minimum sample count)."""
