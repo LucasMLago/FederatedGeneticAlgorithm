@@ -44,16 +44,22 @@ def train(msg: Message, context: Context):
     ga = CLIENT_GA_instances[partition_id]
     best_hp = ga.run_round_updates(global_state_dict=global_state_dict)
 
-    log(
-        INFO,
-        f"[Client {partition_id}] Best HP selected: batch={best_hp['batch_size']}, lr={best_hp['lr']}, opt={best_hp['optimizer']}",
-    )
-
     batch_size = best_hp["batch_size"]
     optimizer = best_hp["optimizer"]
     lr = best_hp["lr"]
     weight_decay = best_hp["weight_decay"]
     momentum = best_hp.get("momentum", 0.0)
+
+    if momentum == 0.0:
+        log(
+            INFO,
+            f"[Client {partition_id}] Best HP selected: batch={batch_size}, lr={lr}, optimizer={optimizer}, weight_decay={weight_decay}",
+        )
+    else:
+        log(
+            INFO,
+            f"[Client {partition_id}] Best HP selected: batch={batch_size}, lr={lr}, optimizer={optimizer}, weight_decay={weight_decay}, momentum={momentum}",
+        )
 
     CLIENT_STATE["batch_size"] = batch_size
 

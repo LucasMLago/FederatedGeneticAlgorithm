@@ -42,10 +42,7 @@ class CNN(nn.Module):
         return self.fc3(x)
 
 
-fds = None
-
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
-
 trainset = torchvision.datasets.MNIST(root="../data", train=True, transform=transform, download=True)
 testset = torchvision.datasets.MNIST(root="../data", train=False, transform=transform, download=True)
 
