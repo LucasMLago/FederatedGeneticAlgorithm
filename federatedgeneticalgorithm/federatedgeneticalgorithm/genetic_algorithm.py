@@ -22,7 +22,7 @@ HYPERPARAMS = {
     "optimizers": ["adam", "adamw", "radam", "lion", "sgd"],
     "learning_rates": [0.0005, 0.001, 0.003, 0.005, 0.01],
     "weight_decays": [0.0, 1e-5, 1e-4, 1e-3],
-    "momentums": [0.0, 0.5, 0.7, 0.9],
+    "momentums": [0.5, 0.7, 0.9, 0.95],
 }
 
 class GeneticAlgorithm:
