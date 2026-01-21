@@ -39,7 +39,7 @@ clientapp = "federatedgeneticalgorithm.client_app:app"
 [tool.flwr.app.config]
 num-server-rounds = 2
 fraction-train = 0.5
-local-epochs = 2
+local-epochs = 5
 
 # Default federation to use when running the app
 [tool.flwr.federations]
