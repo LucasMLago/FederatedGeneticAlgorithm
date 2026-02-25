@@ -215,62 +215,89 @@ class GeneticAlgorithm:
                 elite_ind.fitness.values = (elite_entry["fitness"],)
                 candidates_pool.append(elite_ind)
 
-        # 2. Inject candidates predicted by Surrogate Model (if trained)
-        if self.surrogate.ready:
-            trials = [self._create_individual() for _ in range(30)]
-            scores = self.surrogate.predict_batch(trials)
-            top_indices = np.argsort(scores)[-2:]
-            for idx in top_indices:
-                candidates_pool.append(trials[idx])
+        # OPTIMIZED GA WITH SURROGATE + MULTI-FIDELITY
+        if config.ENABLE_SURROGATE_GA:
+            # 2. Inject candidates predicted by Surrogate Model (if trained)
+            if self.surrogate.ready:
+                trials = [self._create_individual() for _ in range(30)]
+                scores = self.surrogate.predict_batch(trials)
+                top_indices = np.argsort(scores)[-2:]
+                for idx in top_indices:
+                    candidates_pool.append(trials[idx])
 
-        self.population[:] = candidates_pool[: config.POPULATION_SIZE]
+            self.population[:] = candidates_pool[: config.POPULATION_SIZE]
 
-        # 3. Low-fidelity evaluation (Rung 0) on a subset of candidates
-        num_to_eval = min(len(candidates_pool), config.NUM_CANDIDATES_TO_EVALUATE)
-        selection_to_eval = random.sample(candidates_pool, k=num_to_eval)
-        rung0_results = []
+            # 3. Low-fidelity evaluation (Rung 0) on a subset of candidates
+            num_to_eval = min(len(candidates_pool), config.NUM_CANDIDATES_TO_EVALUATE)
+            selection_to_eval = random.sample(candidates_pool, k=num_to_eval)
+            rung0_results = []
 
-        for ind in selection_to_eval:
-            acc = self._evaluate_rung(
-                ind,
-                global_state_dict,
-                config.RUNG0_EPOCHS,
-                config.RUNG0_SUBSET_RATIO,
-                config.RUNG0_MU,
-            )
-            ind.fitness.values = (acc,)
+            for ind in selection_to_eval:
+                acc = self._evaluate_rung(
+                    ind,
+                    global_state_dict,
+                    config.RUNG0_EPOCHS,
+                    config.RUNG0_SUBSET_RATIO,
+                    config.RUNG0_MU,
+                )
+                ind.fitness.values = (acc,)
 
-            entry = {"hp": dict(ind), "fitness": acc, "rung": 0}
-            self.history.append(entry)
-            rung0_results.append(entry)
+                entry = {"hp": dict(ind), "fitness": acc, "rung": 0}
+                self.history.append(entry)
+                rung0_results.append(entry)
 
-        # 4. High-fidelity evaluation (Rung 1) used to promote the best candidate
-        if rung0_results:
-            best_rung0 = max(rung0_results, key=lambda x: x["fitness"])
+            # 4. High-fidelity evaluation (Rung 1) used to promote the best candidate
+            if rung0_results:
+                best_rung0 = max(rung0_results, key=lambda x: x["fitness"])
 
-            acc_r1 = self._evaluate_rung(
-                best_rung0["hp"],
-                global_state_dict,
-                config.RUNG1_EPOCHS,
-                1.0,
-                config.RUNG1_MU,
-            )
+                acc_r1 = self._evaluate_rung(
+                    best_rung0["hp"],
+                    global_state_dict,
+                    config.RUNG1_EPOCHS,
+                    1.0,  # Full dataset
+                    config.RUNG1_MU,
+                )
 
-            entry_r1 = {"hp": best_rung0["hp"], "fitness": acc_r1, "rung": 1}
-            self.history.append(entry_r1)
+                entry_r1 = {"hp": best_rung0["hp"], "fitness": acc_r1, "rung": 1}
+                self.history.append(entry_r1)
 
-            self.elite.append(entry_r1)
-            self.elite.sort(key=lambda x: x["fitness"], reverse=True)
-            self.elite = self.elite[:3]
+                self.elite.append(entry_r1)
+                self.elite.sort(key=lambda x: x["fitness"], reverse=True)
+                self.elite = self.elite[:3]
 
-        # 5. Periodically retrain the surrogate model using accumulated history
-        if self.round_counter % config.SURROGATE_RETRAIN_INTERVAL == 0 and len(self.history) >= 5:
-            self.surrogate.update(self.history)
+            # 5. Periodically retrain the surrogate model using accumulated history
+            if self.round_counter % config.SURROGATE_RETRAIN_INTERVAL == 0 and len(self.history) >= 5:
+                self.surrogate.update(self.history)
 
-        if self.elite:
-            return self.elite[0]["hp"]
-        elif rung0_results:
-            best_current = max(rung0_results, key=lambda x: x["fitness"])
-            return best_current["hp"]
+            if self.elite:
+                return self.elite[0]["hp"]
+            elif rung0_results:
+                best_current = max(rung0_results, key=lambda x: x["fitness"])
+                return best_current["hp"]
+            else:
+                return selection_to_eval[0]
+
+        # Default GA 
         else:
-            return selection_to_eval[0]
+            self.population[:] = candidates_pool[: config.POPULATION_SIZE]
+
+            for ind in self.population:
+                acc = self._evaluate_rung(
+                    ind,
+                    global_state_dict,
+                    epochs=config.EPOCHS,
+                    subset_ratio=1.0,           # Full dataset
+                    mu=0.0,
+                )
+                ind.fitness.values = (acc,)
+
+                entry = {"hp": dict(ind), "fitness": acc, "rung": "full"}
+                self.history.append(entry)
+            
+            sorted_pop = sorted(self.population, key=lambda ind: ind.fitness.values[0], reverse=True)
+
+            self.elite = []
+            for ind in sorted_pop[:3]:
+                 self.elite.append({"hp": dict(ind), "fitness": ind.fitness.values[0]})
+
+            return dict(sorted_pop[0])
