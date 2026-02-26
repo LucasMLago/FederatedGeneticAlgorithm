@@ -17,7 +17,6 @@ app = ClientApp()
 
 # Persist GA instance per partition to maintain population history across rounds
 CLIENT_GA_instances: Dict[int, GeneticAlgorithm] = {}
-CLIENT_STATE = {}
 
 
 @app.train()
@@ -73,8 +72,6 @@ def train(msg: Message, context: Context):
             INFO,
             f"[Client {partition_id}] Best HP selected: batch={batch_size}, lr={lr}, optimizer={optimizer}, weight_decay={weight_decay}, momentum={momentum}",
         )
-
-    CLIENT_STATE[partition_id] = {"batch_size": batch_size}
 
     model.load_state_dict(global_state_dict)
     model.to(device)
@@ -142,16 +139,11 @@ def evaluate(msg: Message, context: Context):
     local_trainset = get_partition(trainset, partition_id, num_partitions, seed=config.SEED)
     local_testset = get_partition(testset, partition_id, num_partitions, seed=config.SEED)
 
-    client_state = CLIENT_STATE.get(partition_id, {})
-    batch_size = client_state.get("batch_size", None)
+    eval_batch_size = 128
 
-    if batch_size is None:
-        log(INFO, f"[Client {partition_id}] Batch size not found in CLIENT_STATE. Using default.")
-        batch_size = config.DEFAULT_BATCH_SIZE
+    _, _, testloader = build_dataloaders(local_trainset, local_testset, batch_size=eval_batch_size, seed=config.SEED)
 
-    _, _, testloader = build_dataloaders(local_trainset, local_testset, batch_size=batch_size, seed=config.SEED)
-
-    log(INFO, f"[Client {partition_id}] Evaluating model on local test set (Batch Size: {batch_size})")
+    log(INFO, f"[Client {partition_id}] Evaluating model on local test set (Batch Size: {eval_batch_size})")
 
     eval_loss, eval_acc = test_fn(model, testloader, device)
 
