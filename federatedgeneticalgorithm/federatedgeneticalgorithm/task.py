@@ -17,6 +17,8 @@ class CNN(nn.Module):
 
     def __init__(self, num_classes: int = 10):
         super(CNN, self).__init__()
+
+        # Convolutional layers
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=32 * 2, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(in_channels=32 * 2, out_channels=64 * 2, kernel_size=3, padding=1)
         self.conv3 = nn.Conv2d(in_channels=64 * 2, out_channels=64 * 2, kernel_size=3, padding=1)
@@ -27,14 +29,17 @@ class CNN(nn.Module):
         self.conv8 = nn.Conv2d(in_channels=256 * 2, out_channels=256 * 2, kernel_size=3, padding=1)
         self.conv9 = nn.Conv2d(in_channels=256 * 2, out_channels=256 * 2, kernel_size=3, padding=1)
 
+        # Batch Normalization layers
         self.bn1 = nn.BatchNorm2d(32 * 2)
         self.bn2 = nn.BatchNorm2d(128 * 2)
         self.bn3 = nn.BatchNorm2d(256 * 2)
 
+        # Pooling and Dropout layers
         self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.dropout_2d = nn.Dropout2d(0.2)
         self.dropout = nn.Dropout(0.2)
 
+        # Fully connected layers
         self.fc1 = nn.Linear(4096 * 2, 4096 * 2)
         self.fc2 = nn.Linear(4096 * 2, 2048 * 2)
         self.fc3 = nn.Linear(2048 * 2, num_classes)
@@ -59,7 +64,7 @@ class CNN(nn.Module):
         x = self.maxpool(x)
         x = self.dropout_2d(x)
 
-        x = torch.flatten(x, start_dim=1)
+        x = torch.flatten(x, start_dim=1) # Flatten all dimensions except batch
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.dropout(x)

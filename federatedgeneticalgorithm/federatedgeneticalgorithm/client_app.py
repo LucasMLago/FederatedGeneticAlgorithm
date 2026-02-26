@@ -74,7 +74,7 @@ def train(msg: Message, context: Context):
             f"[Client {partition_id}] Best HP selected: batch={batch_size}, lr={lr}, optimizer={optimizer}, weight_decay={weight_decay}, momentum={momentum}",
         )
 
-    CLIENT_STATE["batch_size"] = batch_size
+    CLIENT_STATE[partition_id] = {"batch_size": batch_size}
 
     model.load_state_dict(global_state_dict)
     model.to(device)
@@ -138,10 +138,12 @@ def evaluate(msg: Message, context: Context):
     local_trainset = get_partition(trainset, partition_id, num_partitions, seed=config.SEED)
     local_testset = get_partition(testset, partition_id, num_partitions, seed=config.SEED)
 
-    batch_size = CLIENT_STATE.get("batch_size", None)
+    client_state = CLIENT_STATE.get(partition_id, {})
+    batch_size = client_state.get("batch_size", None)
 
     if batch_size is None:
-        raise ValueError(f"[Client {partition_id}] Batch size not found in CLIENT_STATE during evaluation.")
+        log(INFO, f"[Client {partition_id}] Batch size not found in CLIENT_STATE. Using default.")
+        batch_size = config.DEFAULT_BATCH_SIZE
 
     _, _, testloader = build_dataloaders(local_trainset, local_testset, batch_size=batch_size, seed=config.SEED)
 
