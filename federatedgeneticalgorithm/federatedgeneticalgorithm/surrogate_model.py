@@ -23,7 +23,7 @@ class SurrogateModel:
     def update(self, history: List[Dict]) -> None:
         """Retrain the surrogate using the collected history (requires a minimum sample count)."""
         # Ensure sufficient history before training the regressor
-        if not self.model or len(history) < 5:
+        if self.model is None or len(history) < 5:
             return
 
         X = [self._hp_to_vector(entry["hp"]) for entry in history]
