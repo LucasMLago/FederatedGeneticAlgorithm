@@ -121,6 +121,10 @@ def train(msg: Message, context: Context):
     }
     metric_record = MetricRecord(metrics)
     content = RecordDict({"arrays": model_record, "metrics": metric_record})
+    
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        
     return Message(content=content, reply_to=msg)
 
 
@@ -129,7 +133,7 @@ def evaluate(msg: Message, context: Context):
     """Evaluate the model on the local test partition and return aggregatable metrics."""
     model = CNN()
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device(config.DEVICE)
     model.to(device)
 
     partition_id = context.node_config["partition-id"]
@@ -160,4 +164,8 @@ def evaluate(msg: Message, context: Context):
     }
     metric_record = MetricRecord(metrics)
     content = RecordDict({"metrics": metric_record})
+    
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        
     return Message(content=content, reply_to=msg)
