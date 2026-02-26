@@ -35,6 +35,7 @@ def train(msg: Message, context: Context):
     local_testset = get_partition(testset, partition_id, num_partitions, seed=config.SEED)
 
     best_hp = {}
+    best_fitness = 0.0
 
     if config.ENABLE_GA:
         log(INFO, f"[Client {partition_id}] Starting GA Round...")
@@ -45,7 +46,7 @@ def train(msg: Message, context: Context):
 
         # Run incremental GA to refine hyperparameters before local training
         ga = CLIENT_GA_instances[partition_id]
-        best_hp = ga.run_round_updates(global_state_dict=global_state_dict)
+        best_hp, best_fitness = ga.run_round_updates(global_state_dict=global_state_dict)
     else:
         log(INFO, f"[Client {partition_id}] GA Disabled. Using fixed default hyperparameters.")
         best_hp = {
@@ -55,6 +56,7 @@ def train(msg: Message, context: Context):
             "weight_decay": config.DEFAULT_WEIGHT_DECAY,
             "momentum": config.DEFAULT_MOMENTUM,
         }
+        best_fitness = 0.0
 
     batch_size = best_hp["batch_size"]
     optimizer = best_hp["optimizer"]
@@ -65,12 +67,12 @@ def train(msg: Message, context: Context):
     if momentum == 0.0:
         log(
             INFO,
-            f"[Client {partition_id}] Best HP selected: batch={batch_size}, lr={lr}, optimizer={optimizer}, weight_decay={weight_decay}",
+            f"[Client {partition_id}] Best HP selected (Fitness: {best_fitness:.4f}): batch={batch_size}, lr={lr}, optimizer={optimizer}, weight_decay={weight_decay}",
         )
     else:
         log(
             INFO,
-            f"[Client {partition_id}] Best HP selected: batch={batch_size}, lr={lr}, optimizer={optimizer}, weight_decay={weight_decay}, momentum={momentum}",
+            f"[Client {partition_id}] Best HP selected (Fitness: {best_fitness:.4f}): batch={batch_size}, lr={lr}, optimizer={optimizer}, weight_decay={weight_decay}, momentum={momentum}",
         )
 
     model.load_state_dict(global_state_dict)

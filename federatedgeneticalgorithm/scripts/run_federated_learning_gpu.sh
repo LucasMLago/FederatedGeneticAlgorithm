@@ -8,4 +8,4 @@ cd "$PROJECT_ROOT"
 
 # Run Federated Learning with GPU
 source .venv/bin/activate
-flwr run . --federation-config "backend.client-resources.num-gpus=0.2"
+flwr run . --federation-config "backend.client-resources.num-gpus=1.0"

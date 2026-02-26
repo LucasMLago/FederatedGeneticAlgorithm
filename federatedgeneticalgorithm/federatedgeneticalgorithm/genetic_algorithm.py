@@ -270,12 +270,12 @@ class GeneticAlgorithm:
                 self.surrogate.update(self.history)
 
             if self.elite:
-                return self.elite[0]["hp"]
+                return self.elite[0]["hp"], self.elite[0]["fitness"]
             elif rung0_results:
                 best_current = max(rung0_results, key=lambda x: x["fitness"])
-                return best_current["hp"]
+                return best_current["hp"], best_current["fitness"]
             else:
-                return selection_to_eval[0]
+                return selection_to_eval[0], 0.0
 
         # Default GA 
         else:
@@ -300,4 +300,4 @@ class GeneticAlgorithm:
             for ind in sorted_pop[:3]:
                  self.elite.append({"hp": dict(ind), "fitness": ind.fitness.values[0]})
 
-            return dict(sorted_pop[0])
+            return dict(sorted_pop[0]), sorted_pop[0].fitness.values[0]
