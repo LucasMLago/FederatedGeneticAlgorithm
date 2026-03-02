@@ -23,27 +23,27 @@ class CNN(nn.Module):
         self.conv2 = nn.Conv2d(32, 32, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm2d(32)
         self.pool1 = nn.MaxPool2d(2, 2)
-        self.drop1 = nn.Dropout(0.2)
+        self.drop1 = nn.Dropout(0.3)
 
         self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
         self.bn3 = nn.BatchNorm2d(64)
         self.conv4 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
         self.bn4 = nn.BatchNorm2d(64)
         self.pool2 = nn.MaxPool2d(2, 2)
-        self.drop2 = nn.Dropout(0.3)
+        self.drop2 = nn.Dropout(0.5)
 
         self.conv5 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
         self.bn5 = nn.BatchNorm2d(128)
         self.conv6 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
         self.bn6 = nn.BatchNorm2d(128)
         self.pool3 = nn.MaxPool2d(2, 2)
-        self.drop3 = nn.Dropout(0.4)
+        self.drop3 = nn.Dropout(0.5)
 
         # Fully connected layers
-        self.fc1 = nn.Linear(128 * 4 * 4, 512)
-        self.bn7 = nn.BatchNorm1d(512)
+        self.fc1 = nn.Linear(128 * 4 * 4, 128)
+        self.bn7 = nn.BatchNorm1d(128)
         self.drop4 = nn.Dropout(0.5)
-        self.fc2 = nn.Linear(512, 10)
+        self.fc2 = nn.Linear(128, 10)
 
     def forward(self, x):
         #Convolutional layers
@@ -72,7 +72,7 @@ class CNN(nn.Module):
 
 
 transform = transforms.Compose(
-    [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+    [transforms.ToTensor()]
 )
 
 trainset = torchvision.datasets.CIFAR10(root="../data", train=True, download=True, transform=transform)
@@ -101,9 +101,31 @@ def build_dataloaders(
     gen = torch.Generator().manual_seed(seed)
     train_subset, val_subset = random_split(trainset, [train_size, val_size], generator=gen)
 
-    train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, num_workers=0, generator=gen)
-    val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False, num_workers=0, generator=gen)
-    test_loader = DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=0, generator=gen)
+    pin_memory = torch.cuda.is_available()
+    train_loader = DataLoader(
+        train_subset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=2,
+        pin_memory=pin_memory,
+        generator=gen,
+    )
+    val_loader = DataLoader(
+        val_subset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=2,
+        pin_memory=pin_memory,
+        generator=gen,
+    )
+    test_loader = DataLoader(
+        testset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=2,
+        pin_memory=pin_memory,
+        generator=gen,
+    )
     return train_loader, val_loader, test_loader
 
 
