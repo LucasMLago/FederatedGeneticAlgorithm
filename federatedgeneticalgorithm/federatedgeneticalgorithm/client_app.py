@@ -29,7 +29,7 @@ def train(msg: Message, context: Context):
     global_state_dict = msg.content["arrays"].to_torch_state_dict()
     model.load_state_dict(global_state_dict)
 
-    device = torch.device(config.DEVICE)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     local_trainset = get_partition(trainset, partition_id, num_partitions, seed=config.SEED)
     local_testset = get_partition(testset, partition_id, num_partitions, seed=config.SEED)
@@ -132,7 +132,7 @@ def evaluate(msg: Message, context: Context):
     """Evaluate the model on the local test partition and return aggregatable metrics."""
     model = CNN()
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
-    device = torch.device(config.DEVICE)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
     partition_id = context.node_config["partition-id"]

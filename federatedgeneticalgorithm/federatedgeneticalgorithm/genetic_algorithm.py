@@ -4,6 +4,7 @@ from deap import base, creator, tools
 import numpy as np
 import random
 
+import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, Subset
 
@@ -166,7 +167,7 @@ class GeneticAlgorithm:
             loader,
             epochs=epochs,
             lr=individual["lr"],
-            device=config.DEVICE,
+            device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
             optimizer=individual["optimizer"],
             weight_decay=individual["weight_decay"],
             momentum=individual.get("momentum", 0.0),

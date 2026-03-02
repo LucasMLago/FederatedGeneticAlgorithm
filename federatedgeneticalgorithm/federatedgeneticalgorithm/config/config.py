@@ -1,8 +1,5 @@
 import torch
 
-# Pytorch config
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 # Seed config
 SEED = 0
 
