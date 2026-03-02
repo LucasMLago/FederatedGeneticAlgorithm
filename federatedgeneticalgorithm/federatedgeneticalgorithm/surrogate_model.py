@@ -43,7 +43,8 @@ class SurrogateModel:
         """Encode an HP dict into a fixed numeric vector."""
         opt_val = 0
         if self.encoder:
-            opt_val = int(self.encoder.transform([hp["optimizer"]])[0])
+            # OneHotEncoder expects 2D input: (n_samples, n_features)
+            opt_val = int(self.encoder.transform([[hp["optimizer"]]])[0])
 
         return [
             float(hp["batch_size"]),
