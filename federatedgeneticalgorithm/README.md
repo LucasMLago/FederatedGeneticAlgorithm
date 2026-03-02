@@ -1,37 +1,31 @@
-# FederatedGeneticAlgorithm: A Flower / PyTorch app
+# FederatedGeneticAlgorithm
 
-## Install dependencies and project
-
-The dependencies are listed in the `pyproject.toml` and you can install them as follows:
+## Setup
 
 ```bash
 pip install -e .
 ```
 
-> **Tip:** Your `pyproject.toml` file can define more than just the dependencies of your Flower app. You can also use it to specify hyperparameters for your runs and control which Flower Runtime is used. By default, it uses the Simulation Runtime, but you can switch to the Deployment Runtime when needed.
-> Learn more in the [TOML configuration guide](https://flower.ai/docs/framework/how-to-configure-pyproject-toml.html).
-
-## Run with the Simulation Engine
-
-In the `FederatedGeneticAlgorithm` directory, use `flwr run` to run a local simulation:
+## Run
 
 ```bash
+# CPU (default)
 flwr run .
+
+# GPU
+flwr run . local-simulation-gpu
 ```
 
-Refer to the [How to Run Simulations](https://flower.ai/docs/framework/how-to-run-simulations.html) guide in the documentation for advice on how to optimize your simulations.
+## Google Colab (GPU)
 
-## Run with the Deployment Engine
+1. Select **Runtime → Change runtime type → T4 GPU**.
+2. Install and run:
 
-Follow this [how-to guide](https://flower.ai/docs/framework/how-to-run-flower-with-deployment-engine.html) to run the same app in this example but with Flower's Deployment Engine. After that, you might be interested in setting up [secure TLS-enabled communications](https://flower.ai/docs/framework/how-to-enable-tls-connections.html) and [SuperNode authentication](https://flower.ai/docs/framework/how-to-authenticate-supernodes.html) in your federation.
+```python
+!pip install -e .
+!flwr run . local-simulation-gpu
+```
 
-You can run Flower on Docker too! Check out the [Flower with Docker](https://flower.ai/docs/framework/docker/index.html) documentation.
-
-## Resources
-
-- Flower website: [flower.ai](https://flower.ai/)
-- Check the documentation: [flower.ai/docs](https://flower.ai/docs/)
-- Give Flower a ⭐️ on GitHub: [GitHub](https://github.com/adap/flower)
-- Join the Flower community!
-  - [Flower Slack](https://flower.ai/join-slack/)
-  - [Flower Discuss](https://discuss.flower.ai/)
+> The `local-simulation-gpu` federation allocates `num-gpus = 0.5` per Ray worker, which is required
+> for `torch.cuda.is_available()` to return `True` inside each client. The default federation uses
+> `num-gpus = 0.0` and runs on CPU only.
