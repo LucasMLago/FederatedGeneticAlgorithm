@@ -1,0 +1,21 @@
+name: "exp_b_ga_per_client_small"
+description: "[SMALL MODEL] Per-client GA at α=0.5 *without surrogate* — the failure-mode characterization and the control arm of the surrogate ablation inThe diagnostic-session Exp B ran with surrogate=true; this config isolates the GA alone."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 20
+  LOCAL_EPOCHS: 8
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+  DATASET_NAME: cifar10_small
+
+  ENABLE_GA: true
+  ENABLE_SURROGATE_GA: false
+  ENABLE_FED_GA: false
+
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.01
+  DEFAULT_OPTIMIZER: sgd
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.9

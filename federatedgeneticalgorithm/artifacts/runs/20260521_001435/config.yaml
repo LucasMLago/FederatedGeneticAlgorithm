@@ -1,0 +1,27 @@
+name: "exp_tpe_femnist"
+description: "TPE baseline on FEMNIST (Dirichlet α=0.5, 60k/10k subsample). Mirrors exp_tpe but with FEMNIST loader + dataset-specific expert HP (sgd/lr=0.003) for log alignment."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 20
+  LOCAL_EPOCHS: 8
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+
+  DATASET_NAME: femnist
+  FEMNIST_TRAIN_SAMPLES: 60000
+  FEMNIST_TEST_SAMPLES: 10000
+
+  ENABLE_GA: false
+  ENABLE_SURROGATE_GA: false
+  ENABLE_FED_GA: false
+  ENABLE_FED_RANDOM_SEARCH: false
+  ENABLE_FED_TPE: true
+  FED_GA_POPULATION_SIZE: 4
+
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.003
+  DEFAULT_OPTIMIZER: sgd
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.9

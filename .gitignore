@@ -1,0 +1,12 @@
+# directories
+.venv
+__pycache__
+data
+
+# files
+*.pt
+federatedgeneticalgorithm/artifacts/active_run_id.txt
+federatedgeneticalgorithm/training.log
+latex/
+
+.DS_Store

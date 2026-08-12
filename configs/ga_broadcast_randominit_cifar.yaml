@@ -1,0 +1,26 @@
+name: "ga_broadcast_randominit_cifar"
+description: "Server GA with a random initial population (no expert). Control for ga_broadcast_cifar."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 20
+  LOCAL_EPOCHS: 8
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+
+  ENABLE_GA: false
+  ENABLE_SURROGATE_GA: false
+  ENABLE_FED_GA: true
+  ENABLE_FED_RANDOM_SEARCH: false
+  ENABLE_FED_TPE: false
+  FED_GA_POPULATION_SIZE: 4
+  FED_GA_SEED_BASELINE: false
+  FED_GA_USE_DELTA_FITNESS: false
+
+  # FED_GA_SEED_BASELINE is false, so these don't go into the population
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.01
+  DEFAULT_OPTIMIZER: sgd
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.9

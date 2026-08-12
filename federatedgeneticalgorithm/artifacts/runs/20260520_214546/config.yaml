@@ -1,0 +1,26 @@
+name: "exp_tpe"
+description: "Server-side TPE (Tree-structured Parzen Estimator via optuna) baseline at α=0.5 — non-GA Bayesian sampler that shares the same coupling regime as FedGA.LOCKED + §9.2 R3 mitigation. Anticipates main-track §9.4 R1 framing 'coupling axis is orthogonal to search algorithm' by adding a stronger non-GA baseline than Random Search."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 20
+  LOCAL_EPOCHS: 8
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+
+  ENABLE_GA: false
+  ENABLE_SURROGATE_GA: false
+  ENABLE_FED_GA: false
+  ENABLE_FED_RANDOM_SEARCH: false
+  ENABLE_FED_TPE: true
+  FED_GA_POPULATION_SIZE: 4
+
+  # TPE ignores seed_individuals by design (see federated_baselines.py); the
+  # first ~10 rounds are random startup trials per optuna's default. Keeping
+  # DEFAULT_* aligned with the expert config for log readability only.
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.01
+  DEFAULT_OPTIMIZER: sgd
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.9
