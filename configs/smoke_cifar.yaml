@@ -1,0 +1,20 @@
+name: "smoke"
+description: "Fast 2-round CIFAR-10 baseline used to verify the runner harness end-to-end."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 2
+  LOCAL_EPOCHS: 1
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+
+  ENABLE_GA: false
+  ENABLE_SURROGATE_GA: false
+  ENABLE_FED_GA: false
+
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.01
+  DEFAULT_OPTIMIZER: sgd
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.9

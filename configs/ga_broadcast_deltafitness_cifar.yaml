@@ -1,0 +1,25 @@
+name: "ga_broadcast_deltafitness_cifar"
+description: "Server-broadcast GA scored by per-round improvement (delta fitness) instead of absolute accuracy. Exposes the trajectory-position bias; pairs with ga_broadcast_cifar.yaml."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 20
+  LOCAL_EPOCHS: 8
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+
+  ENABLE_GA: false
+  ENABLE_SURROGATE_GA: false
+  ENABLE_FED_GA: true
+  ENABLE_FED_RANDOM_SEARCH: false
+  ENABLE_FED_TPE: false
+  FED_GA_POPULATION_SIZE: 4
+  FED_GA_SEED_BASELINE: true
+  FED_GA_USE_DELTA_FITNESS: true
+
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.01
+  DEFAULT_OPTIMIZER: sgd
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.9

@@ -1,0 +1,25 @@
+name: "smoke-femnist"
+description: "Fast 2-round FEMNIST baseline used to verify the FEMNIST loader + FEMNISTCNN through the full runner harness."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 2
+  LOCAL_EPOCHS: 1
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+
+  DATASET_NAME: femnist
+  # Small subsample so the smoke is actually fast.
+  FEMNIST_TRAIN_SAMPLES: 5000
+  FEMNIST_TEST_SAMPLES: 1000
+
+  ENABLE_GA: false
+  ENABLE_SURROGATE_GA: false
+  ENABLE_FED_GA: false
+
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.01
+  DEFAULT_OPTIMIZER: sgd
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.9

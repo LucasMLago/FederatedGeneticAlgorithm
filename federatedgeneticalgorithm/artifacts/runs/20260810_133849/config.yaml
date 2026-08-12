@@ -1,0 +1,25 @@
+name: "exp_g_fedga_delta_fitness"
+description: "FedGA at α=0.5 with delta-fitness signal (fitness = eval_acc_after - eval_acc_before instead of absolute). Diagnostic-phase Exp G — characterizes the lucky-recovery bias where an HP that follows a crash gets an inflated Δ and falsely promotes to elite.Pairs with exp_e_fedga.yaml (absolute-fitness treatment-as-control)."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 20
+  LOCAL_EPOCHS: 8
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+
+  ENABLE_GA: false
+  ENABLE_SURROGATE_GA: false
+  ENABLE_FED_GA: true
+  ENABLE_FED_RANDOM_SEARCH: false
+  ENABLE_FED_TPE: false
+  FED_GA_POPULATION_SIZE: 4
+  FED_GA_SEED_BASELINE: true
+  FED_GA_USE_DELTA_FITNESS: true
+
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.01
+  DEFAULT_OPTIMIZER: sgd
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.9

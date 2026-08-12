@@ -1,0 +1,24 @@
+name: "ga_broadcast_smallcnn"
+description: "Server-broadcast GA (high coupling) with the 530K-parameter CNN. CIFAR-10, alpha=0.5."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 20
+  LOCAL_EPOCHS: 8
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+  DATASET_NAME: cifar10_small
+
+  ENABLE_GA: false
+  ENABLE_SURROGATE_GA: false
+  ENABLE_FED_GA: true
+  FED_GA_POPULATION_SIZE: 4
+
+  # Defaults still used to seed the initial FedGA population with the
+  # textbook expert HP, so the GA either keeps it or evolves away.
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.01
+  DEFAULT_OPTIMIZER: sgd
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.9

@@ -1,0 +1,24 @@
+name: "exp_k_baseline_naive_femnist"
+description: "Naive baseline on FEMNIST: adam/lr=1e-3/wd=0 — the PyTorch tutorial default a data scientist with no FL experience would pick. Same naive HP as the CIFAR variant; the failure mode is HP-not-tuned, not dataset-specific."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 20
+  LOCAL_EPOCHS: 8
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+
+  DATASET_NAME: femnist
+  FEMNIST_TRAIN_SAMPLES: 60000
+  FEMNIST_TEST_SAMPLES: 10000
+
+  ENABLE_GA: false
+  ENABLE_SURROGATE_GA: false
+  ENABLE_FED_GA: false
+
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.001
+  DEFAULT_OPTIMIZER: adam
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.0

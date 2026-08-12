@@ -1,0 +1,24 @@
+name: "ga_surrogate_femnist"
+description: "Per-client GA with shared surrogate (medium coupling) on FEMNIST; mirrors the CIFAR pairing of ga_perclient_cifar.yaml / ga_surrogate_cifar.yaml."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 20
+  LOCAL_EPOCHS: 8
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+
+  DATASET_NAME: femnist
+  FEMNIST_TRAIN_SAMPLES: 60000
+  FEMNIST_TEST_SAMPLES: 10000
+
+  ENABLE_GA: true
+  ENABLE_SURROGATE_GA: true
+  ENABLE_FED_GA: false
+
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.003
+  DEFAULT_OPTIMIZER: sgd
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.9
