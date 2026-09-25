@@ -1,9 +1,9 @@
-name: "ga_perclient_cifar"
-description: "Per-client GA (zero coupling): each client runs its own GA on its local validation split. CIFAR-10, alpha=0.5."
+name: "ga_perclient_cifar_r40"
+description: "Same as ga_perclient_cifar with 40 rounds."
 
 overrides:
   SEED: 0
-  NUM_SERVER_ROUNDS: 20
+  NUM_SERVER_ROUNDS: 40
   LOCAL_EPOCHS: 8
   FRACTION_TRAIN: 0.5
   PARTITION_MODE: dirichlet

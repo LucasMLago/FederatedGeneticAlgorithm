@@ -1,5 +1,5 @@
 name: "ga_broadcast_cifar"
-description: "Server GA (high coupling): one HP per round sent to all clients, fitness is the eval accuracy after aggregation. Population starts with the expert HPs. CIFAR-10, alpha=0.5."
+description: "Server GA (high coupling): one HP per round sent to all clients, scored on the clients' held-out split after aggregation. Population starts with the expert HPs. CIFAR-10, alpha=0.5."
 
 overrides:
   SEED: 0
@@ -20,3 +20,6 @@ overrides:
   DEFAULT_OPTIMIZER: sgd
   DEFAULT_WEIGHT_DECAY: 0.0
   DEFAULT_MOMENTUM: 0.9
+
+  # fitness on the held-out split, not the test set
+  FED_FITNESS_SPLIT: val

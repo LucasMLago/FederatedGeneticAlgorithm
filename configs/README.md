@@ -36,6 +36,7 @@ Other scenarios, same designs:
 | `*_smallcnn` | ~530K-param CNN on CIFAR-10 |
 | `*_alpha01` | Dirichlet alpha=0.1 |
 | `smoke_*` | 2-round smoke tests (~6 min on CPU) |
+| `*_r40` | 40 rounds instead of 20 (per-client and broadcast GA only) |
 
 ## Format
 
@@ -51,3 +52,8 @@ overrides:                 # UPPER_CASE names from config.py
 The runner rejects keys that don't exist in config.py, writes the resolved values to a JSON file
 and points `FGA_CONFIG_PATH` at it. Ray workers read the same file, so the server and the clients
 always see the same config.
+
+The broadcast, random search and TPE configs set `FED_FITNESS_SPLIT: val`: the server scores
+candidates on the 20% of training data each client holds out, and the test split is only used
+for reporting. Surrogate configs set `GA_EVOLVE_POPULATION: false` to keep the population logic
+their runs were made with.

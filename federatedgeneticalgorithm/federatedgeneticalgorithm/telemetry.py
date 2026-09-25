@@ -85,6 +85,8 @@ SERVER_AGGREGATED_HEADERS = [
     "hp_momentum",
     "eval-loss",
     "eval-acc",
+    "fitness-val-loss",
+    "fitness-val-acc",
 ]
 
 CLIENT_ROUND_HEADERS = [

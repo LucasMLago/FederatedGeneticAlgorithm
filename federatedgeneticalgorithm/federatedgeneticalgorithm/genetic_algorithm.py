@@ -107,6 +107,7 @@ class GeneticAlgorithm:
             "history": [dict(e) for e in self.history],
             "elite": [dict(e) for e in self.elite],
             "population": [dict(ind) for ind in self.population],
+            "population_fitness": [ind.fitness.values[0] if ind.fitness.valid else None for ind in self.population],
             "fitness_cache": dict(self.fitness_cache),
             "last_best_hp": dict(self.last_best_hp) if self.last_best_hp else None,
             "last_best_fitness": float(self.last_best_fitness),
@@ -140,6 +141,11 @@ class GeneticAlgorithm:
         self.history = list(state.get("history", []))
         self.elite = list(state.get("elite", []))
         self.population = [creator.Individual(d) for d in state.get("population", [])]
+        if config.GA_EVOLVE_POPULATION:
+            # without this the tournament is random after every reload
+            for ind, fit in zip(self.population, state.get("population_fitness", [])):
+                if fit is not None:
+                    ind.fitness.values = (fit,)
         self.fitness_cache = dict(state.get("fitness_cache", {}))
         self.last_best_hp = state.get("last_best_hp")
         self.last_best_fitness = float(state.get("last_best_fitness", 0.0))
@@ -708,9 +714,15 @@ class GeneticAlgorithm:
 
         # plain GA: no surrogate, every individual trains on the full data
         else:
-            self.population[:] = candidates_pool[: config.POPULATION_SIZE]
+            if config.GA_EVOLVE_POPULATION:
+                # score parents + offspring + elites from the same weights, keep the best
+                to_evaluate = candidates_pool
+            else:
+                # old behavior: the pool starts with the population, so this drops the offspring
+                self.population[:] = candidates_pool[: config.POPULATION_SIZE]
+                to_evaluate = self.population
 
-            for ind in self.population:
+            for ind in to_evaluate:
                 result = self._evaluate_rung(
                     ind,
                     global_state_dict,
@@ -727,7 +739,7 @@ class GeneticAlgorithm:
                 entry = self._history_entry(dict(ind), fitness, drift, val_acc, rung="full")
                 self.history.append(entry)
 
-            evaluated = [ind for ind in self.population if ind.fitness.valid]
+            evaluated = [ind for ind in to_evaluate if ind.fitness.valid]
             if not evaluated:
                 # everything OOM'd on this visit, hand back a random HP
                 self.best_round_fitness.append(0.0)
@@ -740,6 +752,8 @@ class GeneticAlgorithm:
                 return dict(fallback), 0.0
 
             sorted_pop = sorted(evaluated, key=lambda ind: ind.fitness.values[0], reverse=True)
+            if config.GA_EVOLVE_POPULATION:
+                self.population[:] = sorted_pop[: config.POPULATION_SIZE]
 
             self.elite = []
             for ind in sorted_pop[:3]:

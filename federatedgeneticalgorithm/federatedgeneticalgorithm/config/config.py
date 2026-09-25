@@ -29,6 +29,10 @@ GA_STAGNATION_WINDOW = 3
 GA_STAGNATION_MIN_DELTA = 0.002
 ADAPTIVE_EXTRA_MUTANTS = 2
 
+# False = old per-client GA: offspring were dropped before evaluation and the
+# population never changed. surrogate configs keep False (those runs weren't redone)
+GA_EVOLVE_POPULATION = True
+
 # Run GA during warmup, then every N visits; reuse last-best HP in between.
 GA_WARMUP_ROUNDS = 3
 GA_RUN_EVERY_N_ROUNDS = 2
@@ -77,6 +81,9 @@ ENABLE_FED_TPE = False
 FED_GA_SEED_BASELINE = True
 # fitness = eval-acc gain over the previous round instead of absolute eval-acc
 FED_GA_USE_DELTA_FITNESS = False
+# fitness for FedGA/RS/TPE: "val" = each client's held-out 20%, pooled;
+# "test" = eval-acc on the test split (old runs only)
+FED_FITNESS_SPLIT = "val"
 
 # --- Telemetry ---
 ENABLE_TELEMETRY_EXPORT = True

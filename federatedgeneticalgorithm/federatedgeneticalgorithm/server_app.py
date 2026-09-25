@@ -45,13 +45,41 @@ class TelemetryFedAvg(FedAvg):
     def aggregate_evaluate(self, server_round: int, replies: Iterable[Message]):
         replies_list = list(replies)
         metrics = super().aggregate_evaluate(server_round, replies_list)
+        row = _metric_record_to_dict(metrics)
+        row.update(self._extra_evaluate_row(replies_list))
         telemetry.append_server_aggregated_row(
             server_round=server_round,
             phase="evaluate",
             num_replies=len(replies_list),
-            metrics=_metric_record_to_dict(metrics),
+            metrics=row,
         )
         return metrics
+
+    def _extra_evaluate_row(self, replies_list) -> Dict[str, float]:
+        return {}
+
+
+def pooled_fitness_val(replies_list) -> Dict[str, float]:
+    """Val acc/loss pooled over clients by split size. Raises rather than fall back to the test split."""
+    total = 0
+    acc_sum = 0.0
+    loss_sum = 0.0
+    for reply in replies_list:
+        if reply.has_error():
+            continue
+        m = reply.content["metrics"]
+        if "fitness-val-acc" not in m:
+            raise RuntimeError(
+                "FED_FITNESS_SPLIT='val' but an evaluate reply has no fitness-val-acc; "
+                "refusing to score the broadcast HP on the test partition."
+            )
+        n = int(m["fitness-val-num-examples"])
+        total += n
+        acc_sum += float(m["fitness-val-acc"]) * n
+        loss_sum += float(m["fitness-val-loss"]) * n
+    if total == 0:
+        raise RuntimeError("No successful evaluate replies to compute the fitness split from.")
+    return {"fitness-val-acc": acc_sum / total, "fitness-val-loss": loss_sum / total}
 
 
 class FederatedGAFedAvg(TelemetryFedAvg):
@@ -59,11 +87,16 @@ class FederatedGAFedAvg(TelemetryFedAvg):
 
     def __init__(self, searcher, *args, use_delta_fitness: bool = False, **kwargs):
         super().__init__(*args, **kwargs)
+        # "val" = clients' held-out split; "test" only to reproduce the old runs
+        self._fitness_split: str = str(config.FED_FITNESS_SPLIT)
+        if self._fitness_split not in ("val", "test"):
+            raise ValueError(f"FED_FITNESS_SPLIT must be 'val' or 'test', got {self._fitness_split!r}")
+        self._pooled_val: Dict[str, float] = {}
         # FederatedGA, FederatedRandomSearch or FederatedTPE, despite the attribute name
         self.fed_ga = searcher
         self._tag = f"HPSearch:{type(searcher).__name__}"
         self._current_hp: Dict = {}
-        self._prev_eval_acc: float = 0.0
+        self._prev_signal: float = 0.0
         self._use_delta_fitness: bool = use_delta_fitness
 
     def configure_train(self, server_round, arrays, config_record, grid):
@@ -85,25 +118,34 @@ class FederatedGAFedAvg(TelemetryFedAvg):
         )
         return super().configure_train(server_round, arrays, config_record, grid)
 
+    def _extra_evaluate_row(self, replies_list) -> Dict[str, float]:
+        return self._pooled_val
+
     def aggregate_evaluate(self, server_round, replies):
         replies_list = list(replies)
+        # before super() so it ends up in the telemetry row
+        self._pooled_val = pooled_fitness_val(replies_list) if self._fitness_split == "val" else {}
         metrics = super().aggregate_evaluate(server_round, replies_list)
         m_dict = _metric_record_to_dict(metrics)
         eval_acc = m_dict.get("eval-acc")
-        if eval_acc is not None and self._current_hp:
-            eval_acc_f = float(eval_acc)
+        if self._fitness_split == "val":
+            signal = self._pooled_val["fitness-val-acc"]
+        else:
+            signal = None if eval_acc is None else float(eval_acc)
+        if signal is not None and self._current_hp:
             if self._use_delta_fitness:
-                fitness = eval_acc_f - self._prev_eval_acc
+                fitness = signal - self._prev_signal
             else:
-                fitness = eval_acc_f
+                fitness = signal
             info = self.fed_ga.record_fitness(fitness)
             log(
                 INFO,
-                f"[{self._tag}] Round {server_round} -- eval-acc={eval_acc_f:.4f}, "
+                f"[{self._tag}] Round {server_round} -- eval-acc={float(eval_acc or 0.0):.4f}, "
+                f"fitness[{self._fitness_split}]={signal:.4f}, "
                 f"fitness(Δ)={fitness:+.4f} "
                 f"(gen={info['generation']}, best_Δ_so_far={self.fed_ga.best_fitness:+.4f})",
             )
-            self._prev_eval_acc = eval_acc_f
+            self._prev_signal = signal
             if "evolved_to_generation" in info:
                 log(
                     INFO,

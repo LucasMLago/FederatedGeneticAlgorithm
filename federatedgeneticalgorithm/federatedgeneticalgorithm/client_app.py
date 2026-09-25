@@ -12,7 +12,7 @@ from flwr.common.logger import log
 from federatedgeneticalgorithm.task import build_model, build_dataloaders, trainset, testset
 from federatedgeneticalgorithm.task import test as test_fn
 from federatedgeneticalgorithm.task import train as train_fn
-from federatedgeneticalgorithm.task import get_partition
+from federatedgeneticalgorithm.task import get_partition, heldout_val_set
 from federatedgeneticalgorithm.genetic_algorithm import GeneticAlgorithm
 from federatedgeneticalgorithm.config import config
 from federatedgeneticalgorithm import telemetry
@@ -274,6 +274,18 @@ def evaluate(msg: Message, context: Context):
         "eval-acc": eval_acc,
         "num-examples": int(len(testloader.dataset)),
     }
+
+    # server-side search scores on the held-out 20%; the test split is only reported
+    server_search = config.ENABLE_FED_GA or config.ENABLE_FED_RANDOM_SEARCH or config.ENABLE_FED_TPE
+    if server_search and config.FED_FITNESS_SPLIT == "val":
+        val_set = heldout_val_set(local_trainset, seed=config.SEED)
+        valloader = torch.utils.data.DataLoader(val_set, batch_size=eval_batch_size, shuffle=False, num_workers=2)
+        fit_val_loss, fit_val_acc = test_fn(model, valloader, device)
+        metrics["fitness-val-loss"] = fit_val_loss
+        metrics["fitness-val-acc"] = fit_val_acc
+        metrics["fitness-val-num-examples"] = int(len(val_set))
+        log(INFO, f"[Client {partition_id}] Fitness split (held-out train 20%): Acc={fit_val_acc:.4f}")
+
     content = RecordDict({"metrics": MetricRecord(metrics)})
 
     if torch.cuda.is_available():

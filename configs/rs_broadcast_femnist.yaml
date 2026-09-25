@@ -25,3 +25,6 @@ overrides:
   DEFAULT_OPTIMIZER: sgd
   DEFAULT_WEIGHT_DECAY: 0.0
   DEFAULT_MOMENTUM: 0.9
+
+  # fitness on the held-out split, not the test set
+  FED_FITNESS_SPLIT: val

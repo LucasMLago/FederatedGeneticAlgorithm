@@ -361,14 +361,44 @@ def partition_class_distribution(
     return histograms
 
 
-def build_dataloaders(
-    trainset: Dataset, testset: Dataset, batch_size: int, seed: int
-) -> Tuple[DataLoader, DataLoader, DataLoader]:
-    """Create train/val (80/20 split) and test DataLoaders."""
+def _train_val_split(trainset: Dataset, seed: int):
+    """80/20 split of a client partition. Also returns the generator, build_dataloaders keeps using it."""
     train_size = int(0.8 * len(trainset))
     val_size = len(trainset) - train_size
     gen = torch.Generator().manual_seed(seed)
     train_subset, val_subset = random_split(trainset, [train_size, val_size], generator=gen)
+    return train_subset, val_subset, gen
+
+
+_trainset_eval_view: Optional[Dataset] = None
+
+
+def _eval_view_of_trainset() -> Dataset:
+    """Train images with the test transforms (no augmentation)."""
+    global _trainset_eval_view
+    if _trainset_eval_view is None:
+        if _DATASET_LOADERS[_dataset_name()] is _load_cifar10:
+            _trainset_eval_view = torchvision.datasets.CIFAR10(
+                root=_CIFAR_ROOT, train=True, download=True, transform=_cifar_transform_test
+            )
+        else:
+            # femnist has no augmentation anyway
+            _trainset_eval_view = trainset
+    return _trainset_eval_view
+
+
+def heldout_val_set(local_trainset: Subset, seed: int) -> Subset:
+    """The 20% that build_dataloaders holds out, without augmentation."""
+    _, val_subset, _ = _train_val_split(local_trainset, seed)
+    global_idx = [local_trainset.indices[i] for i in val_subset.indices]
+    return Subset(_eval_view_of_trainset(), global_idx)
+
+
+def build_dataloaders(
+    trainset: Dataset, testset: Dataset, batch_size: int, seed: int
+) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    """Create train/val (80/20 split) and test DataLoaders."""
+    train_subset, val_subset, gen = _train_val_split(trainset, seed)
 
     pin_memory = torch.cuda.is_available()
     train_loader = DataLoader(
