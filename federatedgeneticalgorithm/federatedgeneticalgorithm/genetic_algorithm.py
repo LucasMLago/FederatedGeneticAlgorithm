@@ -511,7 +511,9 @@ class GeneticAlgorithm:
             for ind in guided:
                 _append_unique(ind)
 
-            self.population[:] = candidates_pool[: config.POPULATION_SIZE]
+            if not config.GA_EVOLVE_POPULATION:
+                # old behavior: the pool starts with the population, so this drops the offspring
+                self.population[:] = candidates_pool[: config.POPULATION_SIZE]
 
             # after warmup the surrogate scores rung 0; only the best-UCB pick and the most
             # uncertain one still train for real (they don't go into the pool). rung 1 always trains
@@ -630,6 +632,12 @@ class GeneticAlgorithm:
                     entry_r1 = self._history_entry(candidate["hp"], fit_r1, drift_r1, val_r1, rung=1)
                     self.history.append(entry_r1)
                     rung1_results.append(entry_r1)
+
+            if config.GA_EVOLVE_POPULATION:
+                # best scored candidates survive; parents keep their last score until beaten
+                scored = [ind for ind in candidates_pool if ind.fitness.valid]
+                scored.sort(key=lambda ind: ind.fitness.values[0], reverse=True)
+                self.population[:] = scored[: config.POPULATION_SIZE] or self.population
 
             # elite scores go stale as the global model moves, but re-eval is expensive,
             # so it only runs every ELITE_REEVAL_EVERY_N_ROUNDS

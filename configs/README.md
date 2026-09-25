@@ -55,5 +55,5 @@ always see the same config.
 
 The broadcast, random search and TPE configs set `FED_FITNESS_SPLIT: val`: the server scores
 candidates on the 20% of training data each client holds out, and the test split is only used
-for reporting. Surrogate configs set `GA_EVOLVE_POPULATION: false` to keep the population logic
-their runs were made with.
+for reporting. The per-client and surrogate configs set `GA_EVOLVE_POPULATION: true`, so offspring
+and surrogate proposals can replace the population (the older runs kept it frozen).

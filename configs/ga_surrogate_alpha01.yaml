@@ -19,5 +19,4 @@ overrides:
   DEFAULT_WEIGHT_DECAY: 0.0
   DEFAULT_MOMENTUM: 0.9
 
-  # these runs weren't redone, keep the old population logic
-  GA_EVOLVE_POPULATION: false
+  GA_EVOLVE_POPULATION: true

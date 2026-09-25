@@ -1,4 +1,4 @@
-"""Per-client GA: offspring must reach the population and scores must survive reloads."""
+"""Per-client GA (plain and surrogate): offspring must reach the population, scores must survive reloads."""
 import random
 
 import numpy as np
@@ -24,7 +24,7 @@ def new_ga(monkeypatch):
     monkeypatch.setattr(config, "GA_EVOLVE_POPULATION", True)
     monkeypatch.setattr(config, "ENABLE_SURROGATE_GA", False)
     monkeypatch.setattr(config, "ENABLE_TELEMETRY_EXPORT", False)
-    monkeypatch.setattr(GeneticAlgorithm, "_evaluate_rung", lambda self, ind, gs, **kw: (_score(ind), 0.0, _score(ind)))
+    monkeypatch.setattr(GeneticAlgorithm, "_evaluate_rung", lambda self, ind, gs, *a, **kw: (_score(ind), 0.0, _score(ind)))
     random.seed(0)
     np.random.seed(0)
     data = TensorDataset(torch.zeros(8, 1), torch.zeros(8, dtype=torch.long))
@@ -58,3 +58,18 @@ def test_population_scores_survive_the_state_reload(new_ga, tmp_path):
     assert [ind.fitness.values[0] if ind.fitness.valid else None for ind in reloaded.population] == [
         _score(ind) for ind in ga.population
     ]
+
+
+def test_surrogate_arm_population_evolves_too(new_ga, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "ENABLE_SURROGATE_GA", True)
+    monkeypatch.setattr(GeneticAlgorithm, "_shared_pool_path", staticmethod(lambda: str(tmp_path / "pool.pkl")))
+    state = tmp_path / "ga.pkl"
+    ga = new_ga()
+    ever_in_population = set()
+    for _ in range(12):
+        ga.run_round_updates({}, client_id=0)
+        ever_in_population |= {_sig(ind) for ind in ga.population}
+        ga.save_state(str(state))
+        ga = new_ga()
+        ga.load_state(str(state))
+    assert len(ever_in_population) > config.POPULATION_SIZE

@@ -29,8 +29,8 @@ GA_STAGNATION_WINDOW = 3
 GA_STAGNATION_MIN_DELTA = 0.002
 ADAPTIVE_EXTRA_MUTANTS = 2
 
-# False = old per-client GA: offspring were dropped before evaluation and the
-# population never changed. surrogate configs keep False (those runs weren't redone)
+# False = old per-client GA (plain and surrogate): offspring were dropped before
+# evaluation and the population never changed
 GA_EVOLVE_POPULATION = True
 
 # Run GA during warmup, then every N visits; reuse last-best HP in between.
