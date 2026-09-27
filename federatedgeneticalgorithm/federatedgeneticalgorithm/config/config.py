@@ -15,6 +15,8 @@ NUMBER_OF_GENERATIONS = 3
 
 # --- Surrogate ---
 SURROGATE_RETRAIN_INTERVAL = 2
+# False = ablation: each client's surrogate sees only its own samples
+SURROGATE_SHARED_POOL = True
 NUM_CANDIDATES_TO_EVALUATE = 4
 SURROGATE_TRIAL_POOL_SIZE = 40
 SURROGATE_TOP_K = 3
@@ -81,6 +83,8 @@ ENABLE_FED_TPE = False
 FED_GA_SEED_BASELINE = True
 # fitness = eval-acc gain over the previous round instead of absolute eval-acc
 FED_GA_USE_DELTA_FITNESS = False
+# False = ablation: the best HP is not carried into the next generation
+FED_GA_ELITISM = True
 # fitness for FedGA/RS/TPE: "val" = each client's held-out 20%, pooled;
 # "test" = eval-acc on the test split (old runs only)
 FED_FITNESS_SPLIT = "val"

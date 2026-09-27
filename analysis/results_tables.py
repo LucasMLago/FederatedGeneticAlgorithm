@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import math
 import statistics
 import sys
@@ -18,7 +19,8 @@ from pathlib import Path
 from scipy.stats import mannwhitneyu, wilcoxon
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SUMMARY = REPO_ROOT / "federatedgeneticalgorithm" / "artifacts" / "matrix_summary.csv"
+# FGA_SUMMARY picks another summary file, e.g. matrix_summary_final.csv
+SUMMARY = Path(os.environ.get("FGA_SUMMARY", REPO_ROOT / "federatedgeneticalgorithm" / "artifacts" / "matrix_summary.csv"))
 RUNS_DIR = REPO_ROOT / "federatedgeneticalgorithm" / "artifacts" / "runs"
 
 SEVERE_DROP_PP = 0.10  # fraction, not pp: 0.10 is a 10pp drop in one round

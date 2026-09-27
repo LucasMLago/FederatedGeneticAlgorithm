@@ -224,6 +224,7 @@ def main(grid: Grid, context: Context) -> None:
             tournament_size=config.TOURNAMENT_SIZE,
             seed=config.SEED,
             seed_individuals=ga_seed_individuals,
+            elitism=bool(config.FED_GA_ELITISM),
         )
         seed_tag = "baseline-seeded" if seed_baseline else "random-pop"
         log(INFO, f"[FedGA] Initial population ({seed_tag}): {searcher.population}")

@@ -8,13 +8,15 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import re
 import statistics
 from collections import defaultdict
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SUMMARY = REPO_ROOT / "federatedgeneticalgorithm" / "artifacts" / "matrix_summary.csv"
+# FGA_SUMMARY picks another summary file, e.g. matrix_summary_final.csv
+SUMMARY = Path(os.environ.get("FGA_SUMMARY", REPO_ROOT / "federatedgeneticalgorithm" / "artifacts" / "matrix_summary.csv"))
 # training.log is gitignored; broadcast_traces.txt is the committed excerpt of its GA lines
 _LOG_CANDIDATES = [
     REPO_ROOT / "federatedgeneticalgorithm" / "training.log",
@@ -35,7 +37,7 @@ BROADCAST_RE = re.compile(
 )
 FITNESS_RE = re.compile(
     r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) - INFO - \[(?:FedGA|HPSearch:\w+)\] "
-    r"Round (?P<round>\d+) -- eval-acc=(?P<acc>[\d.]+), fitness\(Δ\)=(?P<fit>[+-]?[\d.]+)"
+    r"Round (?P<round>\d+) -- eval-acc=(?P<acc>[\d.]+), (?:fitness\[\w+\]=[\d.]+, )?fitness\(Δ\)=(?P<fit>[+-]?[\d.]+)"
 )
 
 

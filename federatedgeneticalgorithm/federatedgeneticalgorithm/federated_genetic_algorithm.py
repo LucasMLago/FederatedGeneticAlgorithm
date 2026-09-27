@@ -27,6 +27,7 @@ class FederatedGA:
     tournament_size: int = 2
     seed: int = 0
     seed_individuals: Optional[List[Dict]] = None  # hand-picked HPs to put in initial pop
+    elitism: bool = True
 
     population: List[Dict] = field(default_factory=list)
     fitnesses: List[Optional[float]] = field(default_factory=list)
@@ -100,7 +101,7 @@ class FederatedGA:
         self.generation += 1
         new_pop: List[Dict] = []
         # Elitism: best HP carried over
-        if self.best_hp is not None:
+        if self.elitism and self.best_hp is not None:
             new_pop.append(dict(self.best_hp))
         while len(new_pop) < self.pop_size:
             p1 = self._tournament()

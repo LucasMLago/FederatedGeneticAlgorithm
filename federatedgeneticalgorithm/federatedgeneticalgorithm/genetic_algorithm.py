@@ -192,6 +192,12 @@ class GeneticAlgorithm:
         """One file per run where every client drops its high-fidelity samples."""
         return str(telemetry.get_run_dir() / "shared_hp_pool.pkl")
 
+    def _pool_path(self, client_id: int) -> str:
+        if config.SURROGATE_SHARED_POOL:
+            return self._shared_pool_path()
+        # ablation: the surrogate only ever sees this client's own samples
+        return str(telemetry.get_run_dir() / f"hp_pool_client_{client_id}.pkl")
+
     def _surrogate_guided_candidates(self, pool_size: int, top_k: int, stagnating: bool) -> List[creator.Individual]:
         if not self.surrogate.ready:
             return []
@@ -674,7 +680,7 @@ class GeneticAlgorithm:
 
             # share new high-fidelity samples through disk and retrain on the pooled set;
             # one client alone only collects 4-5 per run, too few for the surrogate
-            pool_path = self._shared_pool_path()
+            pool_path = self._pool_path(client_id)
             new_hf_entries = [
                 {
                     "hp": dict(e["hp"]),
