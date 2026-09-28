@@ -88,19 +88,22 @@ def drop_rounds(curve: list[float | None]) -> list[tuple[int, float]]:
 
 
 DESIGNS = [  # scenario, label, color, marker, filled (top to bottom in panel d)
-    ("fixed_expert_cifar", "expert (fixed)", GRAY, "D", True),
+    ("fixed_expert_cifar", "expert (baseline)", GRAY, "D", True),
+    ("ga_perclient_cifar_r40", "per-client GA, 40 rounds", "#2a78d6", "o", False),
     ("ga_perclient_cifar", "per-client GA", "#2a78d6", "o", True),
+    ("ga_surrogate_nopool_cifar", "surrogate GA, no shared pool", "#eb6834", "x", True),
     ("ga_surrogate_cifar", "surrogate GA", "#eb6834", "o", True),
-    ("ga_broadcast_cifar", "broadcast GA", "#1baf7a", "o", True),
     ("ga_broadcast_cifar_r40", "broadcast GA, 40 rounds", "#1baf7a", "o", False),
+    ("ga_broadcast_cifar", "broadcast GA", "#1baf7a", "o", True),
+    ("ga_broadcast_noelite_cifar", "broadcast GA, no elitism", "#1baf7a", "x", True),
     ("tpe_broadcast_cifar", "broadcast TPE", "#1baf7a", "s", True),
     ("rs_broadcast_cifar", "broadcast RS", "#1baf7a", "^", True),
-    ("fixed_naive_cifar", "naive (fixed)", GRAY, "D", False),
+    ("fixed_naive_cifar", "naive (baseline)", GRAY, "D", False),
 ]
 
 
 def fig2(rows: dict) -> None:
-    fig = plt.figure(figsize=(7.16, 2.45))
+    fig = plt.figure(figsize=(7.16, 2.75))
     outer = fig.add_gridspec(1, 2, width_ratios=[3.0, 2.35], wspace=0.62, left=0.065, right=0.925, bottom=0.17, top=0.86)
     left = outer[0, 0].subgridspec(1, 3, wspace=0.16)
     x = np.arange(1, 21)
@@ -165,18 +168,14 @@ def fig2(rows: dict) -> None:
     plt.close(fig)
 
 
-def expert_ranks() -> dict[str, list[int]]:
-    """Rank of the expert (position 1) among the 4 gen-0 candidates, per condition and seed."""
+def gen0_candidates() -> dict[tuple[str, int], list[tuple[float, bool]]]:
+    """Fitness (%) of the 4 gen-0 candidates per condition and seed, flagged True for the expert."""
     path = REPO_ROOT / "federatedgeneticalgorithm" / "artifacts" / "expert_position.csv"
-    groups: dict[tuple, list[dict]] = defaultdict(list)
+    out: dict[tuple[str, int], list[tuple[float, bool]]] = defaultdict(list)
     with path.open(encoding="utf-8") as fh:
         for r in csv.DictReader(fh):
             cond = "sequential" if r["phase"] == "sequential" else r["checkpoint"]
-            groups[(cond, int(r["seed"]))].append(r)
-    out: dict[str, list[int]] = defaultdict(list)
-    for (cond, seed), rs in sorted(groups.items()):
-        expert = next(r for r in rs if r["is_expert"] == "1")
-        out[cond].append(1 + sum(float(r["val_acc"]) > float(expert["val_acc"]) for r in rs))
+            out[(cond, int(r["seed"]))].append((float(r["val_acc"]) * 100, r["is_expert"] == "1"))
     return out
 
 
@@ -184,7 +183,7 @@ def fig3() -> None:
     windows = load_windows()
     traces = parse_traces(windows)
     infer_missing_round1(traces)
-    fig, (ax, bx) = plt.subplots(2, 1, figsize=(3.5, 4.4), gridspec_kw={"height_ratios": [1.15, 1], "hspace": 0.62})
+    fig, (ax, bx) = plt.subplots(2, 1, figsize=(3.5, 5.4), gridspec_kw={"height_ratios": [1, 1.45], "hspace": 0.55})
     seeded_first, series = [], []
     for (scn, seed), tr in sorted(traces.items()):
         if scn == "ga_broadcast_deltafitness_cifar":
@@ -210,29 +209,42 @@ def fig3() -> None:
     ax.grid(axis="y", **GRID)
     ax.set_title("(a) gen-0 fitness by evaluation order", loc="left", fontsize=8.2)
 
-    ranks = expert_ranks()
-    conds = [("sequential", "in sequence\n(as in the GA)"), ("cold", "same start:\ninitial model"),
-             ("warm", "same start:\nafter gen 0")]
-    for i, (key, _) in enumerate(conds):
-        vals = ranks.get(key, [])
-        # spread tied seeds side by side so none hides behind another
-        xs = []
-        for j, v in enumerate(vals):
-            same = [k for k, w in enumerate(vals) if w == v]
-            xs.append(i + (same.index(j) - (len(same) - 1) / 2) * 0.13)
-        bx.scatter(xs, vals, marker="D", s=22, color="#eb6834", edgecolor="white", linewidth=0.5, zorder=4)
-        if vals:
-            m = statistics.fmean(vals)
-            bx.plot([i - 0.22, i + 0.22], [m, m], color="#3a3a37", lw=1.2, zorder=3)
-            bx.text(i + 0.26, m, f"{m:.1f}", fontsize=6.8, va="center", color="#3a3a37")
-    bx.set_xticks(range(len(conds)))
-    bx.set_xticklabels([lbl for _, lbl in conds], fontsize=6.8)
-    bx.set_xlim(-0.5, len(conds) - 0.3)
-    bx.set_ylim(4.4, 0.6)
-    bx.set_yticks([1, 2, 3, 4])
-    bx.set_ylabel("Expert rank (1 = best)")
-    bx.grid(axis="y", **GRID)
-    bx.set_title("(b) expert rank among the 4 candidates", loc="left", fontsize=8.2)
+    cands = gen0_candidates()
+    conds = [("sequential", "evaluated in sequence, as in the GA"),
+             ("cold", "each trained from the initial model"),
+             ("warm", "each trained from the model after gen. 0")]
+    ordinal = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th"}
+    y, yticks, ylabels = 0.0, [], []
+    for key, header in conds:
+        bx.text(0, y - 0.85, header, fontsize=7.2, color="#3a3a37", va="center")
+        for seed in sorted(s for c, s in cands if c == key):
+            vals = cands[(key, seed)]
+            expert = next(v for v, is_exp in vals if is_exp)
+            others = [v for v, is_exp in vals if not is_exp]
+            bx.plot([min(v for v, _ in vals), max(v for v, _ in vals)], [y, y], color="#d9d9d4", lw=0.9, zorder=2)
+            bx.scatter(others, [y] * len(others), s=16, color="#a3a39d", edgecolor="white", linewidth=0.5, zorder=3)
+            bx.scatter([expert], [y], marker="D", s=26, color="#eb6834", edgecolor="white", linewidth=0.5, zorder=4)
+            rank = 1 + sum(v > expert for v, _ in vals)
+            bx.text(87, y, ordinal[rank], fontsize=7, va="center", ha="center", color="#3a3a37")
+            yticks.append(y)
+            ylabels.append(f"seed {seed}")
+            y += 1
+        y += 1.3
+    bx.text(87, -0.85, "rank", fontsize=6.8, ha="center", va="center", color="#6b6b66", style="italic")
+    bx.set_yticks(yticks)
+    bx.set_yticklabels(ylabels, fontsize=6.8)
+    bx.tick_params(axis="y", length=0)
+    bx.set_ylim(y - 1.8, -1.5)
+    bx.set_xlim(0, 92)
+    bx.set_xticks([0, 20, 40, 60, 80])
+    bx.set_xlabel("Fitness (%)", fontsize=7.8)
+    bx.grid(axis="x", **GRID)
+    bx.spines["left"].set_visible(False)
+    bx.legend(handles=[
+        plt.Line2D([], [], marker="D", ls="", color="#eb6834", markeredgecolor="white", ms=5, label="expert (its rank at right)"),
+        plt.Line2D([], [], marker="o", ls="", color="#a3a39d", markeredgecolor="white", ms=4.5, label="other gen-0 candidates"),
+    ], loc="upper center", bbox_to_anchor=(0.45, -0.2), ncol=2, frameon=False, fontsize=7, handletextpad=0.3)
+    bx.set_title("(b) the same four candidates, evaluated three ways", loc="left", fontsize=8.2, pad=6)
     for ext in ("pdf", "png"):
         fig.savefig(OUT_DIR / f"fig3_coldstart.{ext}", dpi=300)
     plt.close(fig)

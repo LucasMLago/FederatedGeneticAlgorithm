@@ -16,7 +16,7 @@ overrides:
   ENABLE_FED_TPE: false
   FED_GA_POPULATION_SIZE: 4
 
-  # expert HPs, used as the first RS sample
+  # expert HPs; RS still samples round 1 at random, so these are never evaluated
   DEFAULT_BATCH_SIZE: 64
   DEFAULT_LR: 0.01
   DEFAULT_OPTIMIZER: sgd

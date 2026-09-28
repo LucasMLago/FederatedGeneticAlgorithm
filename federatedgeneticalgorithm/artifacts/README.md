@@ -17,6 +17,19 @@ One row per finished `(config, seed)` run.
 | `wall_seconds` | total run time |
 | `git_sha`, `tag`, `started_at`, `finished_at` | where the run came from |
 
+## `matrix_summary_valfit.csv`, `matrix_summary_final.csv`, `expert_position.csv`
+
+- `matrix_summary_valfit.csv`: the runs redone after server-side search moved its fitness to the
+  held-out validation split and the per-client GA got an evolving population, plus the ablations and
+  the 40-round runs. Same columns as above. Its `git_sha` column shows the server checkout (61b6d54):
+  the code was copied there with rsync before it was committed, and it is the code merged into `main`
+  after that commit.
+- `matrix_summary_final.csv`: the rows the paper reports, i.e. the fixed-configuration rows of
+  `matrix_summary.csv` (no search, so the fix does not touch them) plus every `ok` row of
+  `matrix_summary_valfit.csv`. Point the analysis scripts at it with `FGA_SUMMARY`.
+- `expert_position.csv`: output of `scripts/expert_position_checkpoint.py`, the common-checkpoint
+  test of the broadcast GA's generation 0.
+
 ## `runs/<run_id>/`
 
 Written during the run:
@@ -24,11 +37,12 @@ Written during the run:
 | File | Contents | Used by |
 |---|---|---|
 | `server_aggregated_rounds.csv` | aggregated train/eval metrics per round (the eval-acc curves) | `results_tables.py`, `paper_figures.py` |
-| `client_round_metrics.csv` | per-client metrics per round and the HPs each client used | manual inspection |
+| `client_round_metrics.csv` | per-client metrics per round and the HPs each client used | `client_agreement.py` |
 | `config.yaml`, `resolved_config.json` | the config the run actually used | reproducing a run |
 | `run_metadata.json` | run id, git SHA, tag, resolved config | provenance |
 | `partition_distribution.json` | class histogram per client after the Dirichlet split | checking the partitions |
 | `ga_candidates.csv`, `ga_state/` | per-client GA populations and evaluated candidates (per-client scenarios only) | GA inspection |
+| `hp_pool_client_<id>.pkl` | each client's own surrogate pool (surrogate runs without the shared pool) | surrogate inspection |
 
 The server-side GA trace (broadcast HP and fitness per round) only goes to the app log, not to
 per-run files. `analysis/fitness_bias.py` rebuilds it by matching log lines to each run's time

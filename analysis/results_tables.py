@@ -52,6 +52,10 @@ FAMILIES = {
     "ga_broadcast_alpha01": ("cifar-alpha01", "GA high-coupling"),
     "ga_broadcast_randominit_cifar": ("failure-modes", "broadcast GA, random-init pop"),
     "ga_broadcast_deltafitness_cifar": ("failure-modes", "broadcast GA, delta fitness"),
+    "ga_perclient_cifar_r40": ("horizon", "per-client GA, 40 rounds"),
+    "ga_broadcast_cifar_r40": ("horizon", "broadcast GA, 40 rounds"),
+    "ga_surrogate_nopool_cifar": ("ablations", "surrogate GA, no shared pool"),
+    "ga_broadcast_noelite_cifar": ("ablations", "broadcast GA, no elitism"),
 }
 
 # Wilcoxon needs at least 3 shared seeds; Mann-Whitney is always reported
@@ -80,6 +84,13 @@ COMPARISONS = [
     ("α=0.1: surrogate vs FedGA", "ga_surrogate_alpha01", "ga_broadcast_alpha01"),
     ("α=0.1: expert vs naive", "fixed_expert_alpha01", "fixed_naive_alpha01"),
     ("α=0.1: naive vs FedGA", "fixed_naive_alpha01", "ga_broadcast_alpha01"),
+    ("40 rounds: per-client vs FedGA", "ga_perclient_cifar_r40", "ga_broadcast_cifar_r40"),
+    ("Per-client: 40 vs 20 rounds", "ga_perclient_cifar_r40", "ga_perclient_cifar"),
+    ("FedGA: 40 vs 20 rounds", "ga_broadcast_cifar_r40", "ga_broadcast_cifar"),
+    ("FedGA 40 rounds vs per-client 20 rounds", "ga_broadcast_cifar_r40", "ga_perclient_cifar"),
+    ("Surrogate: no shared pool vs shared pool", "ga_surrogate_nopool_cifar", "ga_surrogate_cifar"),
+    ("CIFAR: per-client vs surrogate without pool", "ga_perclient_cifar", "ga_surrogate_nopool_cifar"),
+    ("FedGA: no elitism vs elitism", "ga_broadcast_noelite_cifar", "ga_broadcast_cifar"),
 ]
 
 
@@ -198,13 +209,15 @@ def main() -> int:
     lines.append(f"_Fonte: `{SUMMARY.relative_to(REPO_ROOT)}` + telemetria por round em `artifacts/runs/`. "
                  f"Runs ok: {len(rows)}._\n")
 
-    fam_order = ["cifar-main", "femnist", "cifar-small", "cifar-alpha01", "failure-modes"]
+    fam_order = ["cifar-main", "femnist", "cifar-small", "cifar-alpha01", "failure-modes", "horizon", "ablations"]
     fam_titles = {
         "cifar-main": "CIFAR-10 / ResNet 11M / α=0.5 (cenário principal)",
         "femnist": "FEMNIST / CNN LEAF / α=0.5",
         "cifar-small": "CIFAR-10 / SmallCNN 530K / α=0.5",
         "cifar-alpha01": "CIFAR-10 / ResNet 11M / α=0.1 (boundary)",
         "failure-modes": "Braços de failure-mode do fitness signal (α=0.5)",
+        "horizon": "Horizonte de 40 rounds (CIFAR-10, α=0.5)",
+        "ablations": "Ablações: pool compartilhado do surrogate e elitismo do broadcast GA",
     }
     for fam in fam_order:
         scns = [s for s, (f, _) in FAMILIES.items() if f == fam and s in rows_by_scn]
