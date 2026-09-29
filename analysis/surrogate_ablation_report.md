@@ -6,45 +6,46 @@
 
 | Variant | N | Mean (%) | SD (%) | CI95% ± (%) | Median (%) | IQR (%) | Min–Max (%) |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Surrogate OFF (control) | 5 | 81.94 | 0.68 | 0.84 | 81.91 | 0.11 | 80.97–82.89 |
-| Surrogate ON (treatment) | 5 | 80.69 | 1.96 | 2.43 | 80.49 | 1.44 | 78.19–83.52 |
+| Surrogate OFF (control) | 5 | 83.21 | 0.66 | 0.81 | 82.83 | 1.03 | 82.66–84.07 |
+| Surrogate ON (treatment) | 5 | 77.91 | 6.09 | 7.57 | 80.15 | 6.40 | 68.16–82.88 |
 
-**Δ (OFF − ON) = +1.25 pp** · Mann-Whitney U = 19.0, p = 0.2222 (two-sided, exact)
+**Δ (OFF − ON) = +5.30 pp** · Mann-Whitney U = 22.0, p = 0.0556 (two-sided, exact)
 
 ## 2. Final eval-acc (round 20)
 
 | Variant | N | Mean (%) | SD (%) | CI95% ± (%) | Median (%) | IQR (%) | Min–Max (%) |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Surrogate OFF (control) | 5 | 81.19 | 1.62 | 2.02 | 81.61 | 0.94 | 78.56–82.89 |
-| Surrogate ON (treatment) | 5 | 79.50 | 3.08 | 3.83 | 79.02 | 3.15 | 75.43–83.52 |
+| Surrogate OFF (control) | 5 | 82.77 | 1.19 | 1.47 | 82.83 | 0.74 | 80.89–84.07 |
+| Surrogate ON (treatment) | 5 | 66.84 | 28.33 | 35.17 | 78.48 | 7.79 | 16.53–82.88 |
 
-**Δ (OFF − ON) = +1.69 pp** · Mann-Whitney U = 17.0, p = 0.4206 (two-sided, exact)
+**Δ (OFF − ON) = +15.93 pp** · Mann-Whitney U = 21.0, p = 0.0952 (two-sided, exact)
 
 ## 3. Wall-time
 
 | Variant | N | Mean (min) | SD (min) | Min–Max (min) |
 |---|---:|---:|---:|---:|
-| Surrogate OFF (control) | 5 | 114.2 | 3.1 | 110.1–117.8 |
-| Surrogate ON (treatment) | 5 | 63.8 | 1.7 | 61.6–66.4 |
+| Surrogate OFF (control) | 5 | 142.7 | 5.2 | 137.2–150.0 |
+| Surrogate ON (treatment) | 5 | 63.7 | 1.7 | 62.5–66.2 |
 
-**Δ wall (OFF − ON) = +50.4 min** · ratio OFF/ON = **1.79×** · Mann-Whitney U = 25.0, p = 0.0079
+**Δ wall (OFF − ON) = +79.0 min** · ratio OFF/ON = **2.24×** · Mann-Whitney U = 25.0, p = 0.0079
 
 ## 4. Per-seed peak (paired)
 
 | Seed | OFF peak (%) | ON peak (%) | Δ (OFF−ON) pp |
 |---:|---:|---:|---:|
-| 0 | 82.89 | 78.19 | +4.70 |
-| 1 | 80.97 | 83.52 | -2.55 |
-| 2 | 81.91 | 79.90 | +2.01 |
-| 3 | 82.02 | 81.34 | +0.68 |
-| 4 | 81.91 | 80.49 | +1.42 |
+| 0 | 84.07 | 80.15 | +3.92 |
+| 1 | 83.76 | 82.88 | +0.88 |
+| 2 | 82.73 | 82.38 | +0.35 |
+| 3 | 82.83 | 68.16 | +14.67 |
+| 4 | 82.66 | 75.98 | +6.68 |
 
-**Wilcoxon signed-rank (paired by seed)**: W = 4.0, p = 0.4375
+**Wilcoxon signed-rank (paired by seed)**: W = 0.0, p = 0.0625
 
 ## 5. Catastrophic crashes (Δeval-acc < -10pp in 1 round)
 
-- **Surrogate ON (treatment, Stage D) · seed 2**: R6 (−31.1pp), R8 (−40.3pp)
-- **Surrogate ON (treatment, Stage D) · seed 3**: R4 (−15.8pp), R10 (−10.5pp)
+- **Surrogate ON (treatment) · seed 1**: R9 (−45.0pp), R12 (−11.7pp)
+- **Surrogate ON (treatment) · seed 3**: R13 (−25.9pp), R16 (−16.7pp), R17 (−11.1pp), R20 (−51.6pp)
+- **Surrogate ON (treatment) · seed 4**: R18 (−11.2pp)
 
 ## 6. Plot
 

@@ -5,6 +5,7 @@ Writes surrogate_ablation.png and surrogate_ablation_report.md next to this file
 from __future__ import annotations
 
 import csv
+import os
 import statistics
 from collections import defaultdict
 from pathlib import Path
@@ -15,7 +16,8 @@ from scipy import stats
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "federatedgeneticalgorithm" / "artifacts"
-MATRIX = ARTIFACTS / "matrix_summary.csv"
+# FGA_SUMMARY picks another summary file, e.g. matrix_summary_final.csv
+MATRIX = Path(os.environ.get("FGA_SUMMARY", ARTIFACTS / "matrix_summary.csv"))
 OUT_PNG = Path(__file__).parent / "surrogate_ablation.png"
 OUT_MD = Path(__file__).parent / "surrogate_ablation_report.md"
 
@@ -127,8 +129,8 @@ def main():
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
     panels = [
-        ("Surrogate OFF (control, Stage C)", ctrl, "#1f77b4", axes[0]),
-        ("Surrogate ON (treatment, Stage D)", trt, "#d62728", axes[1]),
+        ("Surrogate OFF (control)", ctrl, "#1f77b4", axes[0]),
+        ("Surrogate ON (treatment)", trt, "#d62728", axes[1]),
     ]
     crashes_per_seed = {}
     for label, rows, color, ax in panels:
@@ -150,20 +152,21 @@ def main():
         sds_arr = np.array(sds)
         ax.plot(all_rounds, means_arr, color=color, lw=3.0, label="mean")
         ax.fill_between(
-            all_rounds, means_arr - sds_arr, means_arr + sds_arr, color=color, alpha=0.18, label="±1 sd"
+            all_rounds, np.clip(means_arr - sds_arr, 0, 100), np.clip(means_arr + sds_arr, 0, 100),
+            color=color, alpha=0.18, label="±1 sd",
         )
-        peak_mean = max(means)
-        peak_sd = sds[int(np.argmax(means))]
-        final_mean = means[-1]
-        final_sd = sds[-1]
+        # per-run peak and final, the same numbers as the report tables
+        peaks = [100 * r["peak"] for r in rows]
+        finals = [accs[-1] for _, _, accs in per_seed]
         ax.set_title(
-            f"{label}\nN=5 · peak {peak_mean:.2f}±{peak_sd:.2f}% · final {final_mean:.2f}±{final_sd:.2f}%",
+            f"{label}\nN={len(rows)} · peak {statistics.mean(peaks):.2f}±{statistics.stdev(peaks):.2f}% "
+            f"· final {statistics.mean(finals):.2f}±{statistics.stdev(finals):.2f}%",
             fontsize=11, fontweight="bold",
         )
         ax.set_xlabel("Server round")
         ax.set_ylabel("eval-acc (%)")
         ax.set_xlim(0, 21)
-        ax.set_ylim(0, 90)
+        ax.set_ylim(0, 100)
         ax.set_xticks(range(0, 21, 2))
         ax.grid(alpha=0.3)
         ax.legend(loc="lower right", fontsize=8, ncol=2)

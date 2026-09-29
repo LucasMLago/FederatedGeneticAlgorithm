@@ -19,4 +19,6 @@ export FGA_SUMMARY=$PWD/federatedgeneticalgorithm/artifacts/matrix_summary_final
 uv run --project federatedgeneticalgorithm python analysis/results_tables.py --markdown analysis/results_tables.md
 uv run --project federatedgeneticalgorithm python analysis/client_agreement.py --markdown analysis/client_agreement_report.md
 uv run --project federatedgeneticalgorithm python analysis/paper_figures.py
+uv run --project federatedgeneticalgorithm python analysis/fitness_bias.py --markdown analysis/fitness_bias_report.md
+uv run --project federatedgeneticalgorithm python analysis/surrogate_ablation.py
 ```
