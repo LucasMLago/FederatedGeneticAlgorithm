@@ -43,6 +43,7 @@ plt.rcParams.update({
     "axes.spines.top": False, "axes.spines.right": False,
     "axes.edgecolor": "#6b6b66", "axes.linewidth": 0.8,
     "figure.dpi": 110, "savefig.bbox": "tight",
+    "pdf.fonttype": 42, "ps.fonttype": 42,  # TrueType; IEEE PDF eXpress rejects Type 3 fonts
 })
 
 
