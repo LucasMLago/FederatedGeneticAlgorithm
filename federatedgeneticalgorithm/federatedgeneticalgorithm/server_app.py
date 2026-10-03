@@ -1,4 +1,5 @@
 import logging
+import math
 import random
 from datetime import datetime
 from typing import Dict, Iterable
@@ -11,6 +12,8 @@ from flwr.common import MessageType
 from flwr.common.logger import log
 from flwr.serverapp import Grid, ServerApp
 from flwr.serverapp.strategy import FedAvg
+from flwr.serverapp.strategy.result import Result
+from flwr.serverapp.strategy.strategy_utils import sample_nodes
 from logging import INFO
 
 from federatedgeneticalgorithm.task import build_model, trainset, testset, partition_class_distribution
@@ -19,6 +22,7 @@ from federatedgeneticalgorithm import telemetry
 from federatedgeneticalgorithm.genetic_algorithm import HYPERPARAMS
 from federatedgeneticalgorithm.federated_genetic_algorithm import FederatedGA
 from federatedgeneticalgorithm.federated_baselines import FederatedRandomSearch, FederatedTPE, FedEx
+from federatedgeneticalgorithm.federated_fedpop import FedPop, incumbent
 
 app = ServerApp()
 
@@ -224,6 +228,112 @@ class FedExFedAvg(TelemetryFedAvg):
             telemetry._append_csv_row(telemetry.get_run_dir() / "fedex_rounds.csv", FEDEX_ROUND_HEADERS, row)
 
 
+FEDPOP_ROUND_HEADERS = ["server_round", "incumbent", "fedpop_g", *[f"val_loss_{i}" for i in range(16)]]
+FEDPOP_CLIENT_HEADERS = ["server_round", "process", "local", "partition", "batch_size", "optimizer", "lr",
+                         "weight_decay", "momentum", "val_loss", "val_acc"]
+
+
+def fedpop_losses(node_ids, replies):
+    """Held-out loss of each client HP slot k, matched by the node that trained it (inf if it failed)."""
+    losses, by_local = [float("inf")] * len(node_ids), {}
+    for reply in replies:
+        if reply.has_error():
+            continue
+        m = reply.content["metrics"]
+        if "fedpop-val-loss" not in m:
+            raise RuntimeError("FedPop needs fedpop-val-loss in every train reply (ENABLE_FEDPOP off on the client?)")
+        k = node_ids.index(reply.metadata.src_node_id)
+        losses[k] = float(m["fedpop-val-loss"])
+        by_local[k] = m
+    return losses, by_local
+
+
+class FedPopFedAvg(TelemetryFedAvg):
+    """FedPop: N_c FedAvg trainings run side by side on the same sampled clients each round.
+
+    Every process trains on the round's sampled clients, each client with its own HP (FedPop-L inside
+    the process); every T_g rounds FedPop-G copies weights from the best processes to the worst. The
+    process with the lowest pooled validation loss in a round is the one evaluated and logged, so the
+    per-round telemetry has the same shape as for the other designs."""
+
+    def __init__(self, fedpop: FedPop, *args, global_every: int = 2, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fedpop = fedpop
+        self.global_every = global_every
+
+    def _train_messages(self, proc_idx, node_ids, server_round, config_record):
+        proc = self.fedpop.processes[proc_idx]
+        out = []
+        for k, node_id in enumerate(node_ids):
+            hp = proc.locals[k]
+            cfg = ConfigRecord(dict(config_record))
+            cfg["server-round"] = server_round
+            cfg["fed_ga_hp_batch_size"] = int(hp["batch_size"])
+            cfg["fed_ga_hp_optimizer"] = str(hp["optimizer"])
+            cfg["fed_ga_hp_lr"] = float(hp["lr"])
+            cfg["fed_ga_hp_weight_decay"] = float(hp["weight_decay"])
+            cfg["fed_ga_hp_momentum"] = float(hp["momentum"])
+            record = RecordDict({self.arrayrecord_key: proc.arrays, self.configrecord_key: cfg})
+            out.append(Message(content=record, message_type=MessageType.TRAIN, dst_node_id=node_id))
+        return out
+
+    def start(self, grid, initial_arrays, num_rounds=3, timeout=3600, train_config=None, evaluate_config=None,
+              evaluate_fn=None):
+        result = Result()
+        for proc in self.fedpop.processes:
+            proc.arrays = initial_arrays
+        run_dir = telemetry.get_run_dir() if config.ENABLE_TELEMETRY_EXPORT else None
+        for rnd in range(1, num_rounds + 1):
+            log(INFO, "")
+            log(INFO, "[ROUND %s/%s]", rnd, num_rounds)
+            # same sampling calls as FedAvg (train, then evaluate), so seeds stay paired with the other designs
+            num_nodes = int(len(list(grid.get_node_ids())) * self.fraction_train)
+            node_ids, _ = sample_nodes(grid, self.min_available_nodes, max(num_nodes, self.min_train_nodes))
+            round_losses, round_metrics = [], []
+            for i, proc in enumerate(self.fedpop.processes):
+                replies = list(grid.send_and_receive(self._train_messages(i, node_ids, rnd, ConfigRecord()),
+                                                     timeout=timeout))
+                losses, by_local = fedpop_losses(node_ids, replies)
+                pooled = sum(losses[k] * int(m["fedpop-val-num-examples"]) for k, m in by_local.items())
+                n_val = sum(int(m["fedpop-val-num-examples"]) for m in by_local.values())
+                for k, m in by_local.items():
+                    if run_dir is not None:
+                        hp = proc.locals[k]
+                        telemetry._append_csv_row(run_dir / "fedpop_clients.csv", FEDPOP_CLIENT_HEADERS, {
+                            "server_round": rnd, "process": i, "local": k, "partition": int(m["fedpop-partition"]),
+                            **hp, "val_loss": losses[k], "val_acc": float(m["fedpop-val-acc"])})
+                arrays, metrics = FedAvg.aggregate_train(self, rnd, replies)
+                if arrays is not None:
+                    proc.arrays = arrays
+                round_loss = pooled / n_val if n_val else None
+                if round_loss is not None and math.isfinite(round_loss):
+                    proc.history.append(round_loss)
+                else:
+                    round_loss = None
+                round_losses.append(round_loss)
+                round_metrics.append(metrics)
+                self.fedpop.local_step(proc, losses, rnd, num_rounds)
+            best = incumbent(round_losses)
+            best_arrays = self.fedpop.processes[best].arrays
+            log(INFO, f"[FedPop] Round {rnd} -- val loss per process: "
+                      + ", ".join("-" if v is None else f"{v:.4f}" for v in round_losses) + f"; reported: {best}")
+            telemetry.append_server_aggregated_row(server_round=rnd, phase="train", num_replies=len(node_ids),
+                                                   metrics=_metric_record_to_dict(round_metrics[best]))
+            pairs = []
+            if rnd % self.global_every == 0 and rnd < num_rounds:
+                pairs = self.fedpop.global_step(rnd, num_rounds)
+                log(INFO, f"[FedPop] Round {rnd} -- FedPop-G (replaced, source): {pairs}")
+            if run_dir is not None:
+                row = {"server_round": rnd, "incumbent": best, "fedpop_g": str(pairs)}
+                row.update({f"val_loss_{i}": v for i, v in enumerate(round_losses)})
+                telemetry._append_csv_row(run_dir / "fedpop_rounds.csv", FEDPOP_ROUND_HEADERS, row)
+            eval_replies = grid.send_and_receive(
+                messages=self.configure_evaluate(rnd, best_arrays, ConfigRecord(), grid), timeout=timeout)
+            self.aggregate_evaluate(rnd, eval_replies)
+            result.arrays = best_arrays
+        return result
+
+
 def setup_file_logging(log_file: str = "training.log") -> logging.Handler:
     handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
     handler.setLevel(logging.INFO)
@@ -265,11 +375,13 @@ def main(grid: Grid, context: Context) -> None:
         ("ENABLE_FED_RANDOM_SEARCH", getattr(config, "ENABLE_FED_RANDOM_SEARCH", False)),
         ("ENABLE_FED_TPE", getattr(config, "ENABLE_FED_TPE", False)),
         ("ENABLE_FEDEX", getattr(config, "ENABLE_FEDEX", False)),
+        ("ENABLE_FEDPOP", getattr(config, "ENABLE_FEDPOP", False)),
     ]
     enabled = [name for name, on in server_side_flags if on]
     if len(enabled) > 1:
         raise RuntimeError(
-            f"At most one of ENABLE_FED_GA / ENABLE_FED_RANDOM_SEARCH / ENABLE_FED_TPE / ENABLE_FEDEX may be "
+            f"At most one of ENABLE_FED_GA / ENABLE_FED_RANDOM_SEARCH / ENABLE_FED_TPE / ENABLE_FEDEX / "
+            f"ENABLE_FEDPOP may be "
             f"True; got: {enabled}"
         )
 
@@ -316,7 +428,15 @@ def main(grid: Grid, context: Context) -> None:
         )
         log(INFO, f"[FedTPE] Initial snapshot (random): {searcher.population}")
 
-    if getattr(config, "ENABLE_FEDEX", False):
+    if getattr(config, "ENABLE_FEDPOP", False):
+        num_train = max(int(num_partitions * fraction_train), 2)
+        fedpop = FedPop(HYPERPARAMS, num_configs=int(config.FEDPOP_NUM_CONFIGS), num_clients=num_train,
+                        seed=config.SEED)
+        global_every = max(1, round(float(config.FEDPOP_GLOBAL_EVERY_FRACTION) * num_rounds))
+        log(INFO, f"[FedPop] {config.FEDPOP_NUM_CONFIGS} processes, {num_train} client HPs each, "
+                  f"FedPop-G every {global_every} rounds")
+        strategy = FedPopFedAvg(fedpop, fraction_train=fraction_train, global_every=global_every)
+    elif getattr(config, "ENABLE_FEDEX", False):
         fedex = FedEx(
             hyperparams=HYPERPARAMS,
             seed=config.SEED,

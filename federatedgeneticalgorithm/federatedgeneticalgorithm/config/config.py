@@ -96,6 +96,12 @@ FEDEX_SCHED = "aggressive"
 # None = draw from U[0, 1), the reference default
 FEDEX_BASELINE_DISCOUNT = None
 
+# FedPop: N_c FedAvg trainings side by side; client HPs evolve inside each (FedPop-L, every round)
+# and the worst trainings copy the best ones every 0.1 * rounds (FedPop-G)
+ENABLE_FEDPOP = False
+FEDPOP_NUM_CONFIGS = 5
+FEDPOP_GLOBAL_EVERY_FRACTION = 0.1
+
 # --- Telemetry ---
 ENABLE_TELEMETRY_EXPORT = True
 ENABLE_GA_CANDIDATE_EXPORT = True

@@ -107,6 +107,43 @@ def client_level(scenario: str) -> dict | None:
             "other_harmful": other_harmful / max(other_rounds, 1)}
 
 
+def fedpop_level(scenario: str) -> dict | None:
+    """Like client_level, over the clients of the training reported in each round (fedpop_*.csv)."""
+    ids = run_ids(scenario)
+    if not ids:
+        return None
+    same_cfg, same_opt, updates, harmful_updates = [], [], 0, 0
+    drop_rounds = drop_harmful = other_rounds = other_harmful = 0
+    for rid in ids:
+        with (RUNS_DIR / rid / "fedpop_rounds.csv").open(encoding="utf-8") as fh:
+            reported = {int(r["server_round"]): int(r["incumbent"]) for r in csv.DictReader(fh)}
+        rounds: dict[int, list[tuple]] = {}
+        with (RUNS_DIR / rid / "fedpop_clients.csv").open(encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                rnd = int(r["server_round"])
+                if reported.get(rnd) == int(r["process"]):
+                    rounds.setdefault(rnd, []).append(config(r))
+        acc = eval_acc(rid)
+        dropped = set(drops(acc))
+        for rnd, cfgs in rounds.items():
+            updates += len(cfgs)
+            harmful_updates += sum(harmful(c) for c in cfgs)
+            any_harmful = any(harmful(c) for c in cfgs)
+            if rnd in dropped:
+                drop_rounds += 1
+                drop_harmful += any_harmful
+            elif rnd - 1 in acc:
+                other_rounds += 1
+                other_harmful += any_harmful
+            pairs = list(itertools.combinations(cfgs, 2))
+            if rnd >= FIRST_ROUND and pairs:
+                same_cfg.append(sum(a == b for a, b in pairs) / len(pairs))
+                same_opt.append(sum(a[1] == b[1] for a, b in pairs) / len(pairs))
+    return {"runs": len(ids), "same_cfg": statistics.fmean(same_cfg), "same_opt": statistics.fmean(same_opt),
+            "harmful_updates": harmful_updates / updates, "drops": drop_rounds, "drops_harmful": drop_harmful,
+            "other_harmful": other_harmful / max(other_rounds, 1)}
+
+
 def broadcast(scenario: str, seeds: range | None = None) -> dict | None:
     ids = run_ids(scenario, seeds)
     if not ids:
@@ -139,8 +176,8 @@ def main() -> int:
              f"| Cenário | Runs | Pares idênticos (round >= {FIRST_ROUND}) | Pares com mesmo otimizador "
              "| Atualizações nocivas | Quedas com cliente nocivo | Rounds sem queda com cliente nocivo |",
              "|---|---:|---:|---:|---:|---:|---:|"]
-    for scn in CLIENT_LEVEL:
-        r = client_level(scn)
+    for scn in CLIENT_LEVEL + ["fedpop_cifar"]:
+        r = fedpop_level(scn) if scn == "fedpop_cifar" else client_level(scn)
         if r:
             lines.append(f"| `{scn}` | {r['runs']} | {100 * r['same_cfg']:.0f}% | {100 * r['same_opt']:.0f}% "
                          f"| {100 * r['harmful_updates']:.1f}% | {r['drops_harmful']}/{r['drops']} "

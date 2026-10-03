@@ -102,7 +102,7 @@ def train(msg: Message, context: Context):
         CLIENT_LOCAL_ROUND_COUNTER[partition_id] = client_round
         log(
             INFO,
-            f"[Client {partition_id}] {'FedEx' if config.ENABLE_FEDEX else 'FedGA-broadcast'} HP: "
+            f"[Client {partition_id}] {'FedEx' if config.ENABLE_FEDEX else 'FedPop' if config.ENABLE_FEDPOP else 'FedGA-broadcast'} HP: "
             f"batch={best_hp['batch_size']}, opt={best_hp['optimizer']}, "
             f"lr={best_hp['lr']}, wd={best_hp['weight_decay']}, mom={best_hp['momentum']}",
         )
@@ -201,13 +201,17 @@ def train(msg: Message, context: Context):
     )
 
     fedex_metrics = {}
-    if config.ENABLE_FEDEX:
-        # FedEx's objective: this client's error on its held-out 20% after local training
-        fedex_val = heldout_val_set(local_trainset, seed=config.SEED)
-        fedex_loader = torch.utils.data.DataLoader(fedex_val, batch_size=128, shuffle=False, num_workers=2)
-        _, fedex_acc = test_fn(model, fedex_loader, device)
-        fedex_metrics = {"fedex-val-acc": fedex_acc, "fedex-val-num-examples": int(len(fedex_val))}
-        del fedex_loader
+    if config.ENABLE_FEDEX or config.ENABLE_FEDPOP:
+        # FedEx and FedPop score this client's model after local training on its held-out 20%
+        heldout = heldout_val_set(local_trainset, seed=config.SEED)
+        heldout_loader = torch.utils.data.DataLoader(heldout, batch_size=128, shuffle=False, num_workers=2)
+        h_loss, h_acc = test_fn(model, heldout_loader, device)
+        if config.ENABLE_FEDEX:
+            fedex_metrics = {"fedex-val-acc": h_acc, "fedex-val-num-examples": int(len(heldout))}
+        else:
+            fedex_metrics = {"fedpop-val-loss": h_loss, "fedpop-val-acc": h_acc,
+                             "fedpop-val-num-examples": int(len(heldout)), "fedpop-partition": int(partition_id)}
+        del heldout_loader
 
     total_visit_time_s = time.perf_counter() - visit_start
     num_examples = int(len(trainloader.dataset))
