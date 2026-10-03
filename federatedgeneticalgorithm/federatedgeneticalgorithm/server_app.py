@@ -6,7 +6,8 @@ from typing import Dict, Iterable
 import numpy as np
 import torch
 
-from flwr.app import ArrayRecord, Context, Message, MetricRecord
+from flwr.app import ArrayRecord, ConfigRecord, Context, Message, MetricRecord, RecordDict
+from flwr.common import MessageType
 from flwr.common.logger import log
 from flwr.serverapp import Grid, ServerApp
 from flwr.serverapp.strategy import FedAvg
@@ -17,7 +18,7 @@ from federatedgeneticalgorithm.config import config
 from federatedgeneticalgorithm import telemetry
 from federatedgeneticalgorithm.genetic_algorithm import HYPERPARAMS
 from federatedgeneticalgorithm.federated_genetic_algorithm import FederatedGA
-from federatedgeneticalgorithm.federated_baselines import FederatedRandomSearch, FederatedTPE
+from federatedgeneticalgorithm.federated_baselines import FederatedRandomSearch, FederatedTPE, FedEx
 
 app = ServerApp()
 
@@ -34,6 +35,7 @@ class TelemetryFedAvg(FedAvg):
     def aggregate_train(self, server_round: int, replies: Iterable[Message]):
         replies_list = list(replies)
         arrays, metrics = super().aggregate_train(server_round, replies_list)
+        self._after_aggregate_train(server_round, replies_list)
         telemetry.append_server_aggregated_row(
             server_round=server_round,
             phase="train",
@@ -57,6 +59,9 @@ class TelemetryFedAvg(FedAvg):
 
     def _extra_evaluate_row(self, replies_list) -> Dict[str, float]:
         return {}
+
+    def _after_aggregate_train(self, server_round: int, replies_list) -> None:
+        pass
 
 
 def pooled_fitness_val(replies_list) -> Dict[str, float]:
@@ -155,6 +160,70 @@ class FederatedGAFedAvg(TelemetryFedAvg):
         return metrics
 
 
+FEDEX_ROUND_HEADERS = [
+    "server_round", "fedex-refine-error", "fedex-baseline", "fedex-entropy", "fedex-mle-prob",
+    "mle_batch_size", "mle_optimizer", "mle_lr", "mle_weight_decay", "mle_momentum",
+]
+
+
+class FedExFedAvg(TelemetryFedAvg):
+    """FedEx: every sampled client trains with its own HP, drawn from the server's distribution."""
+
+    def __init__(self, fedex: FedEx, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fedex = fedex
+        self._assigned: Dict[int, tuple] = {}  # node id -> grid indices of the HP it was sent
+
+    def configure_train(self, server_round, arrays, config_record, grid):
+        messages = list(super().configure_train(server_round, arrays, config_record, grid))
+        self._assigned = {}
+        out = []
+        for msg in messages:
+            node_id = msg.metadata.dst_node_id
+            idx, hp = self.fedex.sample()
+            self._assigned[node_id] = idx
+            cfg = ConfigRecord(dict(config_record))
+            # same keys as the broadcast searchers, read by _extract_fed_ga_hp
+            cfg["fed_ga_hp_batch_size"] = int(hp["batch_size"])
+            cfg["fed_ga_hp_optimizer"] = str(hp["optimizer"])
+            cfg["fed_ga_hp_lr"] = float(hp["lr"])
+            cfg["fed_ga_hp_weight_decay"] = float(hp["weight_decay"])
+            cfg["fed_ga_hp_momentum"] = float(hp["momentum"])
+            record = RecordDict({self.arrayrecord_key: arrays, self.configrecord_key: cfg})
+            out.append(Message(content=record, message_type=MessageType.TRAIN, dst_node_id=node_id))
+            log(
+                INFO,
+                f"[FedEx] Round {server_round} -- node {node_id}: batch={hp['batch_size']}, "
+                f"opt={hp['optimizer']}, lr={hp['lr']}, wd={hp['weight_decay']}, mom={hp['momentum']}",
+            )
+        return out
+
+    def _after_aggregate_train(self, server_round: int, replies_list) -> None:
+        assigned, errors, weights = [], [], []
+        for reply in replies_list:
+            if reply.has_error():
+                continue
+            m = reply.content["metrics"]
+            if "fedex-val-acc" not in m:
+                raise RuntimeError("FedEx needs fedex-val-acc in every train reply (ENABLE_FEDEX off on the client?)")
+            assigned.append(self._assigned[reply.metadata.src_node_id])
+            errors.append(1.0 - float(m["fedex-val-acc"]))
+            weights.append(float(m["fedex-val-num-examples"]))
+        if not assigned:
+            return
+        info = self.fedex.step(assigned, errors, weights)
+        mle = self.fedex.mle()
+        log(
+            INFO,
+            f"[FedEx] Round {server_round} -- refine error={info['fedex-refine-error']:.4f}, "
+            f"baseline={info['fedex-baseline']:.4f}, entropy={info['fedex-entropy']:.3f}, "
+            f"MLE HP (p={info['fedex-mle-prob']:.3f}): {mle}",
+        )
+        if config.ENABLE_TELEMETRY_EXPORT:
+            row = {"server_round": server_round, **info, **{f"mle_{k}": v for k, v in mle.items()}}
+            telemetry._append_csv_row(telemetry.get_run_dir() / "fedex_rounds.csv", FEDEX_ROUND_HEADERS, row)
+
+
 def setup_file_logging(log_file: str = "training.log") -> logging.Handler:
     handler = logging.FileHandler(log_file, mode="a", encoding="utf-8")
     handler.setLevel(logging.INFO)
@@ -195,11 +264,12 @@ def main(grid: Grid, context: Context) -> None:
         ("ENABLE_FED_GA", config.ENABLE_FED_GA),
         ("ENABLE_FED_RANDOM_SEARCH", getattr(config, "ENABLE_FED_RANDOM_SEARCH", False)),
         ("ENABLE_FED_TPE", getattr(config, "ENABLE_FED_TPE", False)),
+        ("ENABLE_FEDEX", getattr(config, "ENABLE_FEDEX", False)),
     ]
     enabled = [name for name, on in server_side_flags if on]
     if len(enabled) > 1:
         raise RuntimeError(
-            f"At most one of ENABLE_FED_GA / ENABLE_FED_RANDOM_SEARCH / ENABLE_FED_TPE may be "
+            f"At most one of ENABLE_FED_GA / ENABLE_FED_RANDOM_SEARCH / ENABLE_FED_TPE / ENABLE_FEDEX may be "
             f"True; got: {enabled}"
         )
 
@@ -246,7 +316,16 @@ def main(grid: Grid, context: Context) -> None:
         )
         log(INFO, f"[FedTPE] Initial snapshot (random): {searcher.population}")
 
-    if searcher is not None:
+    if getattr(config, "ENABLE_FEDEX", False):
+        fedex = FedEx(
+            hyperparams=HYPERPARAMS,
+            seed=config.SEED,
+            sched=str(config.FEDEX_SCHED),
+            baseline_discount=config.FEDEX_BASELINE_DISCOUNT,
+        )
+        log(INFO, f"[FedEx] sched={config.FEDEX_SCHED}, baseline discount={fedex.baseline_discount:.3f}")
+        strategy = FedExFedAvg(fedex, fraction_train=fraction_train)
+    elif searcher is not None:
         strategy = FederatedGAFedAvg(
             searcher, fraction_train=fraction_train, use_delta_fitness=use_delta_fitness
         )

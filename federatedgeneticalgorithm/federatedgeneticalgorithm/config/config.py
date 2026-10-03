@@ -89,6 +89,13 @@ FED_GA_ELITISM = True
 # "test" = eval-acc on the test split (old runs only)
 FED_FITNESS_SPLIT = "val"
 
+# FedEx: the server keeps one categorical distribution per HP and each sampled client draws
+# its own HP; scored by the client's error on its held-out 20% after local training
+ENABLE_FEDEX = False
+FEDEX_SCHED = "aggressive"
+# None = draw from U[0, 1), the reference default
+FEDEX_BASELINE_DISCOUNT = None
+
 # --- Telemetry ---
 ENABLE_TELEMETRY_EXPORT = True
 ENABLE_GA_CANDIDATE_EXPORT = True

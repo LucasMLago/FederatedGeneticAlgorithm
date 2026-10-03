@@ -23,7 +23,9 @@ One row per finished `(config, seed)` run.
   held-out validation split and the per-client GA got an evolving population, plus the ablations and
   the 40-round runs. Same columns as above. Its `git_sha` column shows the server checkout (61b6d54):
   the code was copied there with rsync before it was committed, and it is the code merged into `main`
-  after that commit.
+  after that commit. The rows tagged `week-*` (seeds 5 to 9 of the main scenario, FedEx, the
+  long-evaluation surrogate and the expert with 40 rounds) show d5a03e7 for the same reason: FedEx
+  was copied over before its commit.
 - `matrix_summary_final.csv`: the rows the paper reports, i.e. the fixed-configuration rows of
   `matrix_summary.csv` (no search, so the fix does not touch them) plus every `ok` row of
   `matrix_summary_valfit.csv`. Point the analysis scripts at it with `FGA_SUMMARY`.
@@ -43,6 +45,7 @@ Written during the run:
 | `partition_distribution.json` | class histogram per client after the Dirichlet split | checking the partitions |
 | `ga_candidates.csv`, `ga_state/` | per-client GA populations and evaluated candidates (per-client scenarios only) | GA inspection |
 | `hp_pool_client_<id>.pkl` | each client's own surrogate pool (surrogate runs without the shared pool) | surrogate inspection |
+| `fedex_rounds.csv` | FedEx per round: weighted validation error, baseline, entropy and most likely HP of the distribution | FedEx inspection |
 
 The server-side GA trace (broadcast HP and fitness per round) only goes to the app log, not to
 per-run files. `analysis/fitness_bias.py` rebuilds it by matching log lines to each run's time

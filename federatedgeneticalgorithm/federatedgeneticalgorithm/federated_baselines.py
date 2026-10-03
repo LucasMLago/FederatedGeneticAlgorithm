@@ -1,10 +1,13 @@
-"""Random Search and TPE with the FederatedGA interface, so FederatedGAFedAvg can run them as is."""
+"""Random Search and TPE with the FederatedGA interface, so FederatedGAFedAvg can run them as is.
+FedEx is also here, but it assigns one HP per client, so it runs under FedExFedAvg instead."""
 
 from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
+
+import numpy as np
 
 from federatedgeneticalgorithm.federated_genetic_algorithm import KEY_MAP
 
@@ -147,3 +150,88 @@ class FederatedTPE:
             info["evolved_to_generation"] = self.generation
             self.fitnesses = [None] * self.pop_size
         return info
+
+
+def _discounted_mean(trace: List[float], factor: float) -> float:
+    weight = factor ** np.flip(np.arange(len(trace)), axis=0)
+    return float(np.inner(trace, weight) / weight.sum())
+
+
+class FedEx:
+    """FedEx (Khodak et al., NeurIPS 2021) over a product of categoricals, one per HP.
+
+    Follows the authors' reference code (github.com/mkhodak/FedEx, hyper.py) with its CIFAR
+    defaults: eta0 = sqrt(2 log k) per HP, 'aggressive' step size, absolute validation error as
+    the objective (diff=False), and a baseline discount drawn from U[0, 1). The RS/SHA wrapper that
+    tunes server settings over many trajectories is left out: one run is one trajectory, as for
+    the other searchers. Uses its own RNG, so client sampling (global `random`) stays paired.
+    """
+
+    def __init__(
+        self,
+        hyperparams: Dict[str, List],
+        seed: int = 0,
+        sched: str = "aggressive",
+        baseline_discount: Optional[float] = None,
+    ) -> None:
+        if sched not in ("aggressive", "adaptive", "auto", "constant"):
+            raise ValueError(f"unknown FedEx step-size schedule {sched!r}")
+        self.hyperparams = hyperparams
+        self._rng = np.random.default_rng(seed)
+        self._keys = sorted(hyperparams)
+        sizes = [len(hyperparams[k]) for k in self._keys]
+        self._eta0 = [np.sqrt(2.0 * np.log(size)) for size in sizes]
+        self._sched = sched
+        self.baseline_discount = (
+            float(self._rng.uniform(0.0, 1.0)) if baseline_discount is None else float(baseline_discount)
+        )
+        self._z = [np.full(size, -np.log(size)) for size in sizes]
+        self.theta = [np.exp(z) for z in self._z]
+        self._store = [0.0 for _ in sizes]
+        self._refine_trace: List[float] = []
+
+    def _hp(self, idx: Tuple[int, ...]) -> Dict:
+        return {KEY_MAP[k]: self.hyperparams[k][i] for k, i in zip(self._keys, idx)}
+
+    def sample(self) -> Tuple[Tuple[int, ...], Dict]:
+        idx = tuple(int(self._rng.choice(len(t), p=t)) for t in self.theta)
+        return idx, self._hp(idx)
+
+    def mle(self) -> Dict:
+        return self._hp(tuple(int(t.argmax()) for t in self.theta))
+
+    def entropy(self) -> float:
+        # the product distribution's entropy is the sum over its independent factors
+        return float(sum(-(t[t > 0] * np.log(t[t > 0])).sum() for t in self.theta))
+
+    def step(self, assigned: List[Tuple[int, ...]], errors: List[float], weights: List[float]) -> Dict[str, float]:
+        """One exponentiated-gradient update from the round's local validation errors."""
+        errors_arr = np.asarray(errors, dtype=np.float64)
+        w = np.asarray(weights, dtype=np.float64)
+        w = w / w.sum()
+        baseline = _discounted_mean(self._refine_trace, self.baseline_discount) if self._refine_trace else 0.0
+        refine = float(np.inner(errors_arr, w))
+        self._refine_trace.append(refine)
+        for i, z in enumerate(self._z):
+            grad = np.zeros(len(z))
+            for idx, s, wi in zip(assigned, errors_arr, w):
+                grad[idx[i]] += wi * (s - baseline) / self.theta[i][idx[i]]
+            if self._sched == "aggressive":
+                denom = 1.0 if np.all(grad == 0.0) else float(np.abs(grad).max())
+            elif self._sched == "adaptive":
+                self._store[i] += float(np.abs(grad).max()) ** 2
+                denom = np.sqrt(self._store[i])
+            elif self._sched == "auto":
+                self._store[i] += 1.0
+                denom = np.sqrt(self._store[i])
+            else:
+                denom = 1.0
+            z -= (self._eta0[i] / denom) * grad
+            z -= z.max() + np.log(np.exp(z - z.max()).sum())
+            self.theta[i] = np.exp(z)
+        return {
+            "fedex-refine-error": refine,
+            "fedex-baseline": baseline,
+            "fedex-entropy": self.entropy(),
+            "fedex-mle-prob": float(np.prod([t.max() for t in self.theta])),
+        }

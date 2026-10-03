@@ -26,7 +26,7 @@ SUMMARY = Path(os.environ.get("FGA_SUMMARY", REPO_ROOT / "federatedgeneticalgori
 RUNS_DIR = REPO_ROOT / "federatedgeneticalgorithm" / "artifacts" / "runs"
 
 CLIENT_LEVEL = ["ga_perclient_cifar", "ga_surrogate_cifar", "ga_surrogate_nopool_cifar", "ga_perclient_cifar_r40",
-                "ga_perclient_alpha01", "ga_surrogate_alpha01"]
+                "ga_perclient_alpha01", "ga_surrogate_alpha01", "fedex_cifar", "ga_surrogate_longeval_cifar"]
 BROADCAST = ["ga_broadcast_cifar", "ga_broadcast_noelite_cifar", "ga_broadcast_cifar_r40", "tpe_broadcast_cifar",
              "rs_broadcast_cifar"]
 FIRST_ROUND = 5  # agreement skips generation 0 / the first participations

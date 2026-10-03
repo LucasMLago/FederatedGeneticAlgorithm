@@ -102,7 +102,7 @@ def train(msg: Message, context: Context):
         CLIENT_LOCAL_ROUND_COUNTER[partition_id] = client_round
         log(
             INFO,
-            f"[Client {partition_id}] FedGA-broadcast HP: "
+            f"[Client {partition_id}] {'FedEx' if config.ENABLE_FEDEX else 'FedGA-broadcast'} HP: "
             f"batch={best_hp['batch_size']}, opt={best_hp['optimizer']}, "
             f"lr={best_hp['lr']}, wd={best_hp['weight_decay']}, mom={best_hp['momentum']}",
         )
@@ -200,6 +200,15 @@ def train(msg: Message, context: Context):
         f"Test Loss={local_test_loss:.4f}, Test Acc={local_test_acc:.4f}",
     )
 
+    fedex_metrics = {}
+    if config.ENABLE_FEDEX:
+        # FedEx's objective: this client's error on its held-out 20% after local training
+        fedex_val = heldout_val_set(local_trainset, seed=config.SEED)
+        fedex_loader = torch.utils.data.DataLoader(fedex_val, batch_size=128, shuffle=False, num_workers=2)
+        _, fedex_acc = test_fn(model, fedex_loader, device)
+        fedex_metrics = {"fedex-val-acc": fedex_acc, "fedex-val-num-examples": int(len(fedex_val))}
+        del fedex_loader
+
     total_visit_time_s = time.perf_counter() - visit_start
     num_examples = int(len(trainloader.dataset))
     model_record = ArrayRecord(model.state_dict())
@@ -213,6 +222,7 @@ def train(msg: Message, context: Context):
         "local-test-accuracy": local_test_acc,
         "num-examples": num_examples,
         "ga-best-fitness": float(best_fitness),
+        **fedex_metrics,
     }
     telemetry_metrics = {
         **metrics,

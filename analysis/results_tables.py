@@ -33,6 +33,7 @@ FAMILIES = {
     "ga_broadcast_cifar": ("cifar-main", "GA high-coupling"),
     "rs_broadcast_cifar": ("cifar-main", "RS high-coupling"),
     "tpe_broadcast_cifar": ("cifar-main", "TPE high-coupling"),
+    "fedex_cifar": ("cifar-main", "FedEx"),
     "fixed_expert_femnist": ("femnist", "fixed HP (expert)"),
     "fixed_naive_femnist": ("femnist", "fixed HP (naive)"),
     "ga_perclient_femnist": ("femnist", "GA zero-coupling"),
@@ -54,8 +55,10 @@ FAMILIES = {
     "ga_broadcast_deltafitness_cifar": ("failure-modes", "broadcast GA, delta fitness"),
     "ga_perclient_cifar_r40": ("horizon", "per-client GA, 40 rounds"),
     "ga_broadcast_cifar_r40": ("horizon", "broadcast GA, 40 rounds"),
+    "fixed_expert_cifar_r40": ("horizon", "fixed HP (expert), 40 rounds"),
     "ga_surrogate_nopool_cifar": ("ablations", "surrogate GA, no shared pool"),
     "ga_broadcast_noelite_cifar": ("ablations", "broadcast GA, no elitism"),
+    "ga_surrogate_longeval_cifar": ("ablations", "surrogate GA, long evaluation"),
 }
 
 # Wilcoxon needs at least 3 shared seeds; Mann-Whitney is always reported
@@ -91,6 +94,14 @@ COMPARISONS = [
     ("Surrogate: no shared pool vs shared pool", "ga_surrogate_nopool_cifar", "ga_surrogate_cifar"),
     ("CIFAR: per-client vs surrogate without pool", "ga_perclient_cifar", "ga_surrogate_nopool_cifar"),
     ("FedGA: no elitism vs elitism", "ga_broadcast_noelite_cifar", "ga_broadcast_cifar"),
+    ("CIFAR: per-client vs FedEx", "ga_perclient_cifar", "fedex_cifar"),
+    ("CIFAR: FedEx vs FedGA", "fedex_cifar", "ga_broadcast_cifar"),
+    ("CIFAR: FedEx vs surrogate", "fedex_cifar", "ga_surrogate_cifar"),
+    ("CIFAR: expert vs FedEx", "fixed_expert_cifar", "fedex_cifar"),
+    ("Surrogate: long vs short evaluation", "ga_surrogate_longeval_cifar", "ga_surrogate_cifar"),
+    ("CIFAR: per-client vs surrogate with long evaluation", "ga_perclient_cifar", "ga_surrogate_longeval_cifar"),
+    ("40 rounds: expert vs per-client", "fixed_expert_cifar_r40", "ga_perclient_cifar_r40"),
+    ("40 rounds: expert vs FedGA", "fixed_expert_cifar_r40", "ga_broadcast_cifar_r40"),
 ]
 
 

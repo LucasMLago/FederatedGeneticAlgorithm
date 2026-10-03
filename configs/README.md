@@ -20,6 +20,7 @@ CIFAR-10, ResNet (~11M params), Dirichlet alpha=0.5, 10 clients, 20 rounds.
 | `ga_broadcast_cifar` | server GA, one HP per round for everyone | high |
 | `rs_broadcast_cifar` | random search, broadcast protocol | high, no memory |
 | `tpe_broadcast_cifar` | TPE, broadcast protocol | high |
+| `fedex_cifar` | FedEx: each client draws its HP from a server distribution updated by exponentiated gradient | from low to high as the distribution concentrates |
 
 Fitness variants of the broadcast GA:
 
@@ -27,6 +28,14 @@ Fitness variants of the broadcast GA:
 |---|---|
 | `ga_broadcast_randominit_cifar` | random initial population, no expert seed |
 | `ga_broadcast_deltafitness_cifar` | fitness = accuracy gain over the previous round |
+
+Ablations:
+
+| Config | Change |
+|---|---|
+| `ga_surrogate_nopool_cifar` | each client's surrogate fits only its own evaluations (no shared pool) |
+| `ga_surrogate_longeval_cifar` | both surrogate rungs evaluate like the per-client GA (10 epochs, whole partition) |
+| `ga_broadcast_noelite_cifar` | broadcast GA without elitism |
 
 Other scenarios, same designs:
 
@@ -36,7 +45,7 @@ Other scenarios, same designs:
 | `*_smallcnn` | ~530K-param CNN on CIFAR-10 |
 | `*_alpha01` | Dirichlet alpha=0.1 |
 | `smoke_*` | 2-round smoke tests (~6 min on CPU) |
-| `*_r40` | 40 rounds instead of 20 (per-client and broadcast GA only) |
+| `*_r40` | 40 rounds instead of 20 (per-client GA, broadcast GA and the expert) |
 
 ## Format
 
