@@ -1,6 +1,6 @@
 # Fitness-signal bias report
 
-_Runs reconstructed from training.log: 11 (ga_broadcast_cifar, ga_broadcast_deltafitness_cifar, ga_broadcast_randominit_cifar)_
+_Runs reconstructed from training.log: 16 (ga_broadcast_cifar, ga_broadcast_deltafitness_cifar, ga_broadcast_randominit_cifar)_
 
 
 ## 1. Cold-start bias: rank of the first-evaluated individual (gen 0)
@@ -12,11 +12,16 @@ _Runs reconstructed from training.log: 11 (ga_broadcast_cifar, ga_broadcast_delt
 | seeded population | 2 | 0.1205 | 0.536, 0.549, 0.503 | 4 | NO |
 | seeded population | 3 | 0.1533 | 0.335, 0.580, 0.625 | 4 | NO |
 | seeded population | 4 | 0.1705 | 0.565, 0.614, 0.607 | 4 | NO |
+| seeded population | 5 | 0.1301 | 0.308, 0.518, 0.527 | 4 | NO |
+| seeded population | 6 | 0.1592 | 0.147, 0.507, 0.519 | 3 | NO |
+| seeded population | 7 | 0.1824 | 0.243, 0.382, 0.386 | 4 | NO |
+| seeded population | 8 | 0.1569 | 0.429, 0.512, 0.412 | 4 | NO |
+| seeded population | 9 | 0.2037 | 0.579, 0.461, 0.640 | 4 | NO |
 | random-init population | 0 | 0.1034 | 0.463, 0.545, 0.676 | 4 | NO |
 | random-init population | 1 | 0.2466 | 0.103, 0.323, 0.283 | 3 | NO |
 | random-init population | 2 | 0.1520 | 0.275, 0.139, 0.622 | 3 | NO |
 
-**5/8 runs** rank the first-evaluated individual worst of generation 0 (no-bias base rate: 25%; expected mean rank without bias: 2.5).
+**9/13 runs** rank the first-evaluated individual worst of generation 0 (no-bias base rate: 25%; expected mean rank without bias: 2.5).
 
 
 ## 2. Trajectory-position bias: post-crash delta credit (delta-fitness arm)
@@ -39,7 +44,7 @@ _Runs reconstructed from training.log: 11 (ga_broadcast_cifar, ga_broadcast_delt
 
 ## 3. Peak accuracy per arm (context)
 
-- `ga_broadcast_cifar` (seeded population): peak 79.07 ± 1.86 (N=5)
+- `ga_broadcast_cifar` (seeded population): peak 78.64 ± 2.67 (N=10)
 - `ga_broadcast_deltafitness_cifar` (delta fitness): peak 81.95 ± 1.09 (N=3)
 - `ga_broadcast_randominit_cifar` (random-init population): peak 80.39 ± 1.15 (N=3)
 
