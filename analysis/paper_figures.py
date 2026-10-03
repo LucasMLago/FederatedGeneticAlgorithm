@@ -32,6 +32,7 @@ REGIMES = {
     "ga_perclient_cifar": dict(label="Per-client GA (zero coupling)", color="#2a78d6", ls="-"),
     "ga_surrogate_cifar": dict(label="Surrogate-aided (medium)", color="#eb6834", ls="-"),
     "ga_broadcast_cifar": dict(label="Server-broadcast GA (high)", color="#1baf7a", ls="-"),
+    "fedex_cifar": dict(label="FedEx", color="#eda100", ls="-"),
 }
 EXPERT = "fixed_expert_cifar"
 GRAY = "#6b6b66"
@@ -88,12 +89,15 @@ def drop_rounds(curve: list[float | None]) -> list[tuple[int, float]]:
     return out
 
 
-DESIGNS = [  # scenario, label, color, marker, filled (top to bottom in panel d)
+DESIGNS = [  # scenario, label, color, marker, filled (top to bottom in panel e)
+    ("fixed_expert_cifar_r40", "expert, 40 rounds", GRAY, "D", False),
     ("fixed_expert_cifar", "expert (baseline)", GRAY, "D", True),
     ("ga_perclient_cifar_r40", "per-client GA, 40 rounds", "#2a78d6", "o", False),
     ("ga_perclient_cifar", "per-client GA", "#2a78d6", "o", True),
+    ("ga_surrogate_longeval_cifar", "surrogate GA, long evaluation", "#eb6834", "s", True),
     ("ga_surrogate_nopool_cifar", "surrogate GA, no shared pool", "#eb6834", "x", True),
     ("ga_surrogate_cifar", "surrogate GA", "#eb6834", "o", True),
+    ("fedex_cifar", "FedEx", "#eda100", "o", True),
     ("ga_broadcast_cifar_r40", "broadcast GA, 40 rounds", "#1baf7a", "o", False),
     ("ga_broadcast_cifar", "broadcast GA", "#1baf7a", "o", True),
     ("ga_broadcast_noelite_cifar", "broadcast GA, no elitism", "#1baf7a", "x", True),
@@ -104,13 +108,13 @@ DESIGNS = [  # scenario, label, color, marker, filled (top to bottom in panel d)
 
 
 def fig2(rows: dict) -> None:
-    fig = plt.figure(figsize=(7.16, 2.75))
-    outer = fig.add_gridspec(1, 2, width_ratios=[3.0, 2.35], wspace=0.62, left=0.065, right=0.925, bottom=0.17, top=0.86)
-    left = outer[0, 0].subgridspec(1, 3, wspace=0.16)
+    fig = plt.figure(figsize=(7.16, 2.8))
+    outer = fig.add_gridspec(1, 2, width_ratios=[3.7, 2.3], wspace=0.58, left=0.06, right=0.925, bottom=0.16, top=0.87)
+    left = outer[0, 0].subgridspec(1, 4, wspace=0.14)
     x = np.arange(1, 21)
     expert = np.nanmean(curves_for(EXPERT, rows) * 100, axis=0)
     panels = [("ga_perclient_cifar", "(a) per-client"), ("ga_surrogate_cifar", "(b) surrogate"),
-              ("ga_broadcast_cifar", "(c) broadcast")]
+              ("ga_broadcast_cifar", "(c) broadcast"), ("fedex_cifar", "(d) FedEx")]
     first = None
     for k, (scn, title) in enumerate(panels):
         ax = fig.add_subplot(left[0, k], sharey=first) if first else fig.add_subplot(left[0, k])
@@ -126,9 +130,9 @@ def fig2(rows: dict) -> None:
             if d:
                 ax.scatter([a for a, _ in d], [b * 100 for _, b in d], marker="v", s=16, color=color,
                            edgecolor="white", linewidth=0.6, zorder=4)
-        ax.text(1.6, 97, f"{n_drops} drops, {seeds_hit}/{len(rows[scn])} seeds", ha="left", va="top",
-                fontsize=6.4, color="#3a3a37")
-        ax.set_title(title, loc="left", fontsize=7.8)
+        ax.text(1.6, 99, f"{n_drops} drop{'' if n_drops == 1 else 's'}\n{seeds_hit}/{len(rows[scn])} seeds",
+                ha="left", va="top", fontsize=6.2, color="#3a3a37", linespacing=1.1)
+        ax.set_title(title, loc="left", fontsize=7.4)
         ax.set_xlim(1, 20)
         ax.set_ylim(0, 100)
         ax.set_yticks([0, 20, 40, 60, 80])
@@ -139,7 +143,7 @@ def fig2(rows: dict) -> None:
             ax.set_ylabel("Eval accuracy (%)")
         else:
             plt.setp(ax.get_yticklabels(), visible=False)
-        if k == 2:
+        if k == len(panels) - 1:
             ax.text(20, expert[-1] + 1.5, "expert", ha="right", va="bottom", fontsize=6.4, color=GRAY, style="italic")
 
     ax = fig.add_subplot(outer[0, 1])
@@ -150,8 +154,11 @@ def fig2(rows: dict) -> None:
         peaks = [float(r["peak_eval_acc"]) * 100 for r in rs]
         walls = [float(r["wall_seconds"]) / 60 for r in rs]
         face = color if filled else "white"
-        ax.scatter(peaks, [y] * len(peaks), marker=marker, s=12, facecolor=face, edgecolor=color, linewidth=0.6,
-                   alpha=0.6, zorder=3)
+        if marker == "x":  # unfilled marker: matplotlib draws it with the face color
+            ax.scatter(peaks, [y] * len(peaks), marker=marker, s=12, color=color, linewidth=0.6, alpha=0.6, zorder=3)
+        else:
+            ax.scatter(peaks, [y] * len(peaks), marker=marker, s=12, facecolor=face, edgecolor=color, linewidth=0.6,
+                       alpha=0.6, zorder=3)
         m = statistics.fmean(peaks)
         ax.plot([m, m], [y - 0.32, y + 0.32], color=color if color != GRAY else "#3a3a37", lw=1.6, zorder=4)
         ax.text(1.03, y, f"{statistics.fmean(walls):.0f} min", transform=ax.get_yaxis_transform(), fontsize=6.4,
@@ -159,11 +166,12 @@ def fig2(rows: dict) -> None:
     ax.set_yticks(range(n))
     ax.set_yticklabels([f"{d[1]} ({len(rows.get(d[0], []))})" for d in reversed(DESIGNS)], fontsize=6.6)
     ax.set_ylim(-0.6, n - 0.4)
-    ax.set_xlim(66, 87)
+    all_peaks = [float(r["peak_eval_acc"]) * 100 for d in DESIGNS for r in rows.get(d[0], [])]
+    ax.set_xlim(5 * np.floor(min(all_peaks) / 5), 88)
     ax.set_xlabel("Peak accuracy (%)")
     ax.grid(axis="x", **GRID)
     ax.tick_params(axis="y", length=0)
-    ax.set_title("(d) peak per seed, bar = mean", loc="left", fontsize=7.8)
+    ax.set_title("(e) peak per seed, bar = mean", loc="left", fontsize=7.8)
     for ext in ("pdf", "png"):
         fig.savefig(OUT_DIR / f"fig2_tradeoff.{ext}", dpi=300)
     plt.close(fig)

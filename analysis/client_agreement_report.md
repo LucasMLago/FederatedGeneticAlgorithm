@@ -25,3 +25,29 @@ _Fonte: `federatedgeneticalgorithm/artifacts/matrix_summary_final.csv` + `client
 | `ga_broadcast_cifar_r40` | 5 | 15/200 | 2 | 2/2 | 1, 1 |
 | `tpe_broadcast_cifar` | 10 | 32/200 | 11 | 8/11 | 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 |
 | `rs_broadcast_cifar` | 10 | 54/200 | 17 | 16/17 | 2, 2, 1, 1, —, 1, 1, 1, 1, 1, 1, 1, 1, —, 3, 1, 1 |
+
+## Conjunto nocivo dentro e fora da amostra (seeds 0–4 vs 5–9)
+
+| Cenário | Seeds | Rounds com configuração nociva | Quedas | Quedas em round nocivo |
+|---|---|---:|---:|---:|
+| `ga_broadcast_cifar` | 0–4 | 13/100 | 4 | 4/4 |
+| `ga_broadcast_cifar` | 5–9 | 11/100 | 7 | 4/7 |
+| `tpe_broadcast_cifar` | 0–4 | 16/100 | 4 | 3/4 |
+| `tpe_broadcast_cifar` | 5–9 | 16/100 | 7 | 5/7 |
+| `rs_broadcast_cifar` | 0–4 | 28/100 | 10 | 10/10 |
+| `rs_broadcast_cifar` | 5–9 | 26/100 | 7 | 6/7 |
+
+## FedEx: concentração da distribuição do servidor
+
+| Seed | Prob. da HP mais provável no round 10 | No round 20 | HP mais provável no round 20 |
+|---:|---:|---:|---|
+| 0 | 0.39 | 0.98 | lion, lr 0.0005, batch 128 |
+| 1 | 0.60 | 1.00 | sgd, lr 0.003, batch 128 |
+| 2 | 0.84 | 1.00 | radam, lr 0.001, batch 64 |
+| 3 | 0.97 | 0.56 | radam, lr 0.0005, batch 128 |
+| 4 | 0.52 | 0.93 | sgd, lr 0.005, batch 128 |
+| 5 | 0.32 | 1.00 | adamw, lr 0.001, batch 128 |
+| 6 | 0.97 | 1.00 | radam, lr 0.003, batch 128 |
+| 7 | 0.69 | 0.99 | lion, lr 0.0005, batch 64 |
+| 8 | 0.25 | 0.90 | sgd, lr 0.003, batch 64 |
+| 9 | 0.49 | 1.00 | sgd, lr 0.003, batch 128 |

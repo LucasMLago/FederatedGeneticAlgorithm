@@ -69,9 +69,10 @@ def eval_acc(run_id: str) -> dict[int, float]:
         return {int(r["server_round"]): 100 * float(r["eval-acc"]) for r in csv.DictReader(fh) if r.get("eval-acc")}
 
 
-def run_ids(scenario: str) -> list[str]:
+def run_ids(scenario: str, seeds: range | None = None) -> list[str]:
     with SUMMARY.open(encoding="utf-8") as fh:
-        return [r["run_id"] for r in csv.DictReader(fh) if r["scenario_name"] == scenario and r["status"] == "ok"]
+        return [r["run_id"] for r in csv.DictReader(fh) if r["scenario_name"] == scenario and r["status"] == "ok"
+                and (seeds is None or int(r["seed"]) in seeds)]
 
 
 def drops(acc: dict[int, float]) -> list[int]:
@@ -106,8 +107,8 @@ def client_level(scenario: str) -> dict | None:
             "other_harmful": other_harmful / max(other_rounds, 1)}
 
 
-def broadcast(scenario: str) -> dict | None:
-    ids = run_ids(scenario)
+def broadcast(scenario: str, seeds: range | None = None) -> dict | None:
+    ids = run_ids(scenario, seeds)
     if not ids:
         return None
     n_rounds = n_harmful = n_drops = drops_harmful = 0
@@ -154,6 +155,29 @@ def main() -> int:
             rec = ", ".join("—" if v is None else str(v) for v in r["recovery"]) or "—"
             lines.append(f"| `{scn}` | {r['runs']} | {r['harmful']}/{r['rounds']} | {r['drops']} "
                          f"| {r['drops_harmful']}/{r['drops']} | {rec} |")
+    # the harmful set was read off the broadcast drops of seeds 0-4; seeds 5-9 came later
+    lines += ["\n## Conjunto nocivo dentro e fora da amostra (seeds 0–4 vs 5–9)\n",
+              "| Cenário | Seeds | Rounds com configuração nociva | Quedas | Quedas em round nocivo |",
+              "|---|---|---:|---:|---:|"]
+    for scn in ("ga_broadcast_cifar", "tpe_broadcast_cifar", "rs_broadcast_cifar"):
+        for label, seeds in (("0–4", range(0, 5)), ("5–9", range(5, 10))):
+            r = broadcast(scn, seeds)
+            if r:
+                lines.append(f"| `{scn}` | {label} | {r['harmful']}/{r['rounds']} | {r['drops']} "
+                             f"| {r['drops_harmful']}/{r['drops']} |")
+    lines += ["\n## FedEx: concentração da distribuição do servidor\n",
+              "| Seed | Prob. da HP mais provável no round 10 | No round 20 | HP mais provável no round 20 |",
+              "|---:|---:|---:|---|"]
+    with SUMMARY.open(encoding="utf-8") as fh:
+        fedex_runs = sorted((int(r["seed"]), r["run_id"]) for r in csv.DictReader(fh)
+                            if r["scenario_name"] == "fedex_cifar" and r["status"] == "ok")
+    for seed, rid in fedex_runs:
+        with (RUNS_DIR / rid / "fedex_rounds.csv").open(encoding="utf-8") as fh:
+            by_round = {int(r["server_round"]): r for r in csv.DictReader(fh)}
+        last = by_round[max(by_round)]
+        hp = f"{last['mle_optimizer']}, lr {last['mle_lr']}, batch {last['mle_batch_size']}"
+        lines.append(f"| {seed} | {float(by_round[10]['fedex-mle-prob']):.2f} "
+                     f"| {float(last['fedex-mle-prob']):.2f} | {hp} |")
     text = "\n".join(lines) + "\n"
     if args.markdown:
         args.markdown.write_text(text, encoding="utf-8")
