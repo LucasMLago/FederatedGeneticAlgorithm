@@ -98,6 +98,7 @@ DESIGNS = [  # scenario, label, color, marker, filled (top to bottom in panel e)
     ("ga_surrogate_nopool_cifar", "surrogate GA, no shared pool", "#eb6834", "x", True),
     ("ga_surrogate_cifar", "surrogate GA", "#eb6834", "o", True),
     ("fedex_cifar", "FedEx", "#eda100", "o", True),
+    ("fedpop_cifar", "FedPop", "#e87ba4", "o", True),
     ("ga_broadcast_cifar_r40", "broadcast GA, 40 rounds", "#1baf7a", "o", False),
     ("ga_broadcast_cifar", "broadcast GA", "#1baf7a", "o", True),
     ("ga_broadcast_noelite_cifar", "broadcast GA, no elitism", "#1baf7a", "x", True),

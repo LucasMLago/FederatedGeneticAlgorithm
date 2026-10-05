@@ -21,6 +21,7 @@ CIFAR-10, ResNet (~11M params), Dirichlet alpha=0.5, 10 clients, 20 rounds.
 | `rs_broadcast_cifar` | random search, broadcast protocol | high, no memory |
 | `tpe_broadcast_cifar` | TPE, broadcast protocol | high |
 | `fedex_cifar` | FedEx: each client draws its HP from a server distribution updated by exponentiated gradient | from low to high as the distribution concentrates |
+| `fedpop_cifar` | FedPop: five trainings side by side, client HPs evolving inside each, the worst trainings copying the best | low inside a training, then converging |
 
 Fitness variants of the broadcast GA:
 

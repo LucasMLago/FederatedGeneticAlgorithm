@@ -15,6 +15,7 @@ _Fonte: `federatedgeneticalgorithm/artifacts/matrix_summary_final.csv` + `client
 | `ga_surrogate_alpha01` | 3 | 1% | 56% | 12.3% | 6/9 | 33% |
 | `fedex_cifar` | 10 | 60% | 87% | 2.8% | 1/2 | 6% |
 | `ga_surrogate_longeval_cifar` | 5 | 2% | 59% | 1.0% | 0/0 | 5% |
+| `fedpop_cifar` | 10 | 32% | 95% | 0.1% | 0/1 | 0% |
 
 ## Busca por broadcast (uma configuração por round para todos)
 

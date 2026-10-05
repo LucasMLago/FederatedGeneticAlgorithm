@@ -1,0 +1,27 @@
+name: "fedpop_cifar"
+description: "FedPop (Chen et al., 2025): five FedAvg trainings side by side on the same sampled clients; inside each, every client trains with its own HP vector and the worst are replaced by perturbed copies of the best each round (FedPop-L); every 2 rounds the worst trainings take the weights and a perturbed base of the best (FedPop-G). The training with the lowest pooled validation loss in a round is the one evaluated. Reference defaults, server HPs fixed to FedAvg. CIFAR-10, alpha=0.5."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 20
+  LOCAL_EPOCHS: 8
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+
+  ENABLE_GA: false
+  ENABLE_SURROGATE_GA: false
+  ENABLE_FED_GA: false
+  ENABLE_FED_RANDOM_SEARCH: false
+  ENABLE_FED_TPE: false
+  ENABLE_FEDEX: false
+  ENABLE_FEDPOP: true
+  FEDPOP_NUM_CONFIGS: 5
+  FEDPOP_GLOBAL_EVERY_FRACTION: 0.1
+
+  # expert HPs; FedPop starts from random base vectors, so these are not used
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.01
+  DEFAULT_OPTIMIZER: sgd
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.9

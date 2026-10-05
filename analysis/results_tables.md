@@ -1,6 +1,6 @@
 # Results tables
 
-_Fonte: `federatedgeneticalgorithm/artifacts/matrix_summary_final.csv` + telemetria por round em `artifacts/runs/`. Runs ok: 165._
+_Fonte: `federatedgeneticalgorithm/artifacts/matrix_summary_final.csv` + telemetria por round em `artifacts/runs/`. Runs ok: 175._
 
 
 ## CIFAR-10 / ResNet 11M / α=0.5 (cenário principal)
@@ -15,6 +15,7 @@ _Fonte: `federatedgeneticalgorithm/artifacts/matrix_summary_final.csv` + telemet
 | `rs_broadcast_cifar` | RS high-coupling | 10 | 74.39 ± 4.73 | 65.34 ± 16.67 | 51.9 | 17 (9/10) | 0/10 | 14 / 12 / 19 |
 | `tpe_broadcast_cifar` | TPE high-coupling | 10 | 77.18 ± 3.24 | 75.76 ± 4.05 | 50.9 | 11 (8/10) | 0/10 | 14 / 17 / 19 |
 | `fedex_cifar` | FedEx | 10 | 81.09 ± 2.04 | 80.52 ± 2.12 | 50.1 | 2 (2/10) | 0/10 | 8 / 10 / 16 |
+| `fedpop_cifar` | FedPop | 10 | 83.22 ± 1.45 | 82.95 ± 1.33 | 249.2 | 1 (1/10) | 0/10 | 6 / 9 / 12 |
 
 ## FEMNIST / CNN LEAF / α=0.5
 
@@ -77,6 +78,7 @@ _Fonte: `federatedgeneticalgorithm/artifacts/matrix_summary_final.csv` + telemet
 |---|---:|---|---:|---:|---:|---:|---:|
 | `fedex_cifar` | 0 | `20260930_203856` | 1 | 12.5 | 5 | 20/20 | não |
 | `fedex_cifar` | 8 | `20261001_032112` | 1 | 10.4 | 7 | 20/20 | não |
+| `fedpop_cifar` | 0 | `20261003_150113` | 1 | 14.8 | 4 | 20/20 | não |
 | `fixed_expert_alpha01` | 0 | `20260810_172002` | 1 | 12.1 | 17 | 20/20 | não |
 | `fixed_naive_alpha01` | 1 | `20260813_212134` | 2 | 15.0 | 18 | 20/20 | não |
 | `fixed_naive_alpha01` | 2 | `20260813_221358` | 2 | 10.6 | 9 | 20/20 | não |
@@ -177,6 +179,10 @@ _Fonte: `federatedgeneticalgorithm/artifacts/matrix_summary_final.csv` + telemet
 | CIFAR: FedEx vs FedGA | +2.45 | 0.038 | 0.014 (N=10) | +8.04 | 0.004 | 0.004 |
 | CIFAR: FedEx vs surrogate | +1.31 | 0.970 | 0.846 (N=10) | +6.27 | 0.970 | 0.922 |
 | CIFAR: expert vs FedEx | +3.27 | 0.000 | 0.002 (N=10) | +3.22 | 0.001 | 0.002 |
+| CIFAR: per-client vs FedPop | -0.54 | 0.273 | 0.275 (N=10) | -1.20 | 0.273 | 0.084 |
+| CIFAR: FedPop vs FedEx | +2.13 | 0.017 | 0.006 (N=10) | +2.44 | 0.009 | 0.004 |
+| CIFAR: FedPop vs FedGA | +4.58 | 0.001 | 0.002 (N=10) | +10.47 | 0.000 | 0.002 |
+| CIFAR: expert vs FedPop | +1.14 | 0.054 | 0.049 (N=10) | +0.79 | 0.241 | 0.049 |
 | Surrogate: long vs short evaluation | +3.39 | 0.099 | 0.125 (N=5) | +7.72 | 0.310 | 0.188 |
 | CIFAR: per-client vs surrogate with long evaluation | -0.49 | 0.513 | 1.000 (N=5) | -0.21 | 1.000 | 0.438 |
 | 40 rounds: expert vs per-client | +0.73 | 0.071 | 0.250 (N=3) | +0.99 | 0.143 | 0.500 |

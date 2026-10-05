@@ -7,8 +7,8 @@ We compare hyperparameter search designs for federated learning that differ in h
 clients share their HP choices within a round: per-client GA (zero coupling), per-client GA with a
 shared surrogate (medium) and a server-side GA that sends one config per round to everyone (high).
 There are also fixed-HP baselines, two non-GA searchers (random search, TPE) using the same
-broadcast protocol, and FedEx, where each client draws its own HP from a distribution the server
-updates. Built on Flower + PyTorch, with CIFAR-10 and FEMNIST.
+broadcast protocol, FedEx, where each client draws its own HP from a distribution the server
+updates, and FedPop, which evolves client HPs inside several parallel trainings. Built on Flower + PyTorch, with CIFAR-10 and FEMNIST.
 
 ## Quick start
 
