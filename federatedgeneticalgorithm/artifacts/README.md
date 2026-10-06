@@ -28,7 +28,8 @@ One row per finished `(config, seed)` run.
   FedEx and FedPop were copied over before their commits.
 - `matrix_summary_final.csv`: the rows the paper reports, i.e. the fixed-configuration rows of
   `matrix_summary.csv` (no search, so the fix does not touch them) plus every `ok` row of
-  `matrix_summary_valfit.csv`. Point the analysis scripts at it with `FGA_SUMMARY`.
+  `matrix_summary_valfit.csv`. The analysis scripts read it by default; `FGA_SUMMARY` points them
+  at another summary.
 - `expert_position.csv`: output of `scripts/expert_position_checkpoint.py`, the common-checkpoint
   test of the broadcast GA's generation 0.
 
@@ -50,6 +51,6 @@ Written during the run:
 
 The server-side GA trace (broadcast HP and fitness per round) only goes to the app log, not to
 per-run files. `analysis/fitness_bias.py` rebuilds it by matching log lines to each run's time
-window in `matrix_summary.csv`. The log isn't committed; `broadcast_traces.txt` here is the
+window in the summary CSV. The log isn't committed; `broadcast_traces.txt` here is the
 committed excerpt with the `[FedGA]`/`[HPSearch]` lines, and the script uses it when the log is
 missing.

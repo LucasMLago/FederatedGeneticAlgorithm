@@ -12,10 +12,11 @@ and the per-run folders). The reports are written by the scripts, don't edit the
 | `aggregate_matrix.py` | stdout or a .md | quick mean/sd/CI per scenario straight from the matrix CSV, works mid-sweep |
 | `surrogate_ablation.py` | `surrogate_ablation_report.md`, `surrogate_ablation.png` | surrogate on vs off, 5 seeds each |
 
-The paper's numbers come from `matrix_summary_final.csv`:
+The scripts read `matrix_summary_final.csv`, the runs the paper reports. To read another summary,
+such as the `matrix_summary.csv` that `scripts/run_matrix.py` appends to, set `FGA_SUMMARY` to its
+path. To regenerate the paper's reports and figures:
 
 ```bash
-export FGA_SUMMARY=$PWD/federatedgeneticalgorithm/artifacts/matrix_summary_final.csv
 uv run --project federatedgeneticalgorithm python analysis/results_tables.py --markdown analysis/results_tables.md
 uv run --project federatedgeneticalgorithm python analysis/client_agreement.py --markdown analysis/client_agreement_report.md
 uv run --project federatedgeneticalgorithm python analysis/paper_figures.py

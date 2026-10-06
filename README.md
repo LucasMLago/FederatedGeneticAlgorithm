@@ -32,7 +32,9 @@ instead of `uv run`: Ray passes the uv wrapper on to its workers and they pick u
 
 ## Tables and figures
 
-All of them come from the telemetry in the repo:
+All of them come from the telemetry in the repo. The scripts read
+`federatedgeneticalgorithm/artifacts/matrix_summary_final.csv`, the runs the paper reports; the full
+list of commands is in [analysis/README.md](analysis/README.md).
 
 ```bash
 uv run --project federatedgeneticalgorithm python analysis/results_tables.py
@@ -47,6 +49,6 @@ configs/                       scenario YAMLs
 scripts/run_matrix.py          config x seed sweeps
 federatedgeneticalgorithm/
   federatedgeneticalgorithm/   Flower app (client, server, GA, surrogate, baselines, telemetry)
-  artifacts/                   matrix_summary.csv and per-run telemetry
+  artifacts/                   summary CSVs and per-run telemetry
 analysis/                      analysis scripts and the reports they write
 ```

@@ -16,13 +16,14 @@ from scipy import stats
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "federatedgeneticalgorithm" / "artifacts"
-# FGA_SUMMARY picks another summary file, e.g. matrix_summary_final.csv
-MATRIX = Path(os.environ.get("FGA_SUMMARY", ARTIFACTS / "matrix_summary.csv"))
+# the runs the paper reports; FGA_SUMMARY picks another summary file, e.g. matrix_summary.csv
+MATRIX = Path(os.environ.get("FGA_SUMMARY", ARTIFACTS / "matrix_summary_final.csv"))
 OUT_PNG = Path(__file__).parent / "surrogate_ablation.png"
 OUT_MD = Path(__file__).parent / "surrogate_ablation_report.md"
 
 CONTROL = "ga_perclient_cifar"
 TREATMENT = "ga_surrogate_cifar"
+SEEDS = range(5)  # the comparison was run on seeds 0-4; seeds 5-9 came later
 
 
 def load_matrix():
@@ -100,8 +101,8 @@ def detect_crashes(curve, threshold_pp=10.0):
 
 def main():
     by_scen = load_matrix()
-    ctrl = sorted(by_scen[CONTROL], key=lambda r: r["seed"])
-    trt = sorted(by_scen[TREATMENT], key=lambda r: r["seed"])
+    ctrl = sorted((r for r in by_scen[CONTROL] if r["seed"] in SEEDS), key=lambda r: r["seed"])
+    trt = sorted((r for r in by_scen[TREATMENT] if r["seed"] in SEEDS), key=lambda r: r["seed"])
 
     assert len(ctrl) == 5 and len(trt) == 5, f"Expected 5+5 seeds, got {len(ctrl)}+{len(trt)}"
 

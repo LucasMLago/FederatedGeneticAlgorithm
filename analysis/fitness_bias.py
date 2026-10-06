@@ -15,8 +15,8 @@ from collections import defaultdict
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-# FGA_SUMMARY picks another summary file, e.g. matrix_summary_final.csv
-SUMMARY = Path(os.environ.get("FGA_SUMMARY", REPO_ROOT / "federatedgeneticalgorithm" / "artifacts" / "matrix_summary.csv"))
+# the runs the paper reports; FGA_SUMMARY picks another summary file, e.g. matrix_summary.csv
+SUMMARY = Path(os.environ.get("FGA_SUMMARY", REPO_ROOT / "federatedgeneticalgorithm" / "artifacts" / "matrix_summary_final.csv"))
 # training.log is gitignored; broadcast_traces.txt is the committed excerpt of its GA lines
 _LOG_CANDIDATES = [
     REPO_ROOT / "federatedgeneticalgorithm" / "training.log",

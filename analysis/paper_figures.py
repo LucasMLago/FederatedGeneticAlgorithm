@@ -20,8 +20,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-# FGA_SUMMARY picks another summary file, e.g. matrix_summary_final.csv
-SUMMARY = Path(os.environ.get("FGA_SUMMARY", REPO_ROOT / "federatedgeneticalgorithm" / "artifacts" / "matrix_summary.csv"))
+# the runs the paper reports; FGA_SUMMARY picks another summary file, e.g. matrix_summary.csv
+SUMMARY = Path(os.environ.get("FGA_SUMMARY", REPO_ROOT / "federatedgeneticalgorithm" / "artifacts" / "matrix_summary_final.csv"))
 RUNS_DIR = REPO_ROOT / "federatedgeneticalgorithm" / "artifacts" / "runs"
 OUT_DIR = REPO_ROOT / "analysis" / "figures"
 
