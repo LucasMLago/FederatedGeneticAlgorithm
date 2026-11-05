@@ -38,6 +38,24 @@ Ablations:
 | `ga_surrogate_longeval_cifar` | both surrogate rungs evaluate like the per-client GA (10 epochs, whole partition) |
 | `ga_broadcast_noelite_cifar` | broadcast GA without elitism |
 
+Pruned search space (`FED_EXCLUDE_HARMFUL: true`): the server-side searchers never train a
+configuration of the harmful set (lion with lr >= 5e-3; adam, adamw or radam with lr >= 1e-2,
+40 of the 320 behaviorally distinct configurations). The GA and random search redraw a proposal
+that falls in it; TPE draws the learning rate from the rates each optimizer has left.
+
+| Config | Change |
+|---|---|
+| `ga_broadcast_pruned_cifar` | broadcast GA on the pruned space |
+| `rs_broadcast_pruned_cifar` | random search on the pruned space |
+| `tpe_broadcast_pruned_cifar` | TPE on the pruned space |
+
+Probes behind two reviewer questions, one seed each unless noted:
+
+| Config | Change |
+|---|---|
+| `probes/probe_sgd_*` | fixed SGD variants of the expert (one or two values changed), to see whether anything nearby beats it; written by `scripts/make_probe_configs.py configs/probes` |
+| `ga_perclient_lambda0_cifar` | per-client GA without the drift penalty (`FITNESS_DRIFT_PENALTY_LAMBDA` and its warmup start set to 0), seeds 0-2 |
+
 Other scenarios, same designs:
 
 | Suffix | Change |
@@ -45,7 +63,7 @@ Other scenarios, same designs:
 | `*_femnist` | FEMNIST with the LEAF CNN |
 | `*_smallcnn` | ~530K-param CNN on CIFAR-10 |
 | `*_alpha01` | Dirichlet alpha=0.1 |
-| `smoke_*` | 2-round smoke tests (~6 min on CPU) |
+| `smoke_*` | 2-round smoke tests (~6 min on CPU); `smoke_pruned_cifar` runs 3 rounds of the pruned broadcast GA |
 | `*_r40` | 40 rounds instead of 20 (per-client GA, broadcast GA and the expert) |
 
 ## Format
