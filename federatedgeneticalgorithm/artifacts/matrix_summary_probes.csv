@@ -1,0 +1,12 @@
+config,seed,scenario_name,run_id,status,returncode,peak_eval_acc,final_eval_acc,num_eval_rounds,wall_seconds,git_sha,tag,started_at,finished_at
+configs/probes/probe_sgd_bs128.yaml,0,probe_sgd_bs128,20261026_203025,ok,0,0.8493,0.8493,20,2907.3,1e8df50223c411b0b2c29674aec550eccdae4d46,safe-search,2026-10-26T20:30:19,2026-10-26T21:18:46
+configs/probes/probe_sgd_lr0p005.yaml,0,probe_sgd_lr0p005,20261026_211853,ok,0,0.8478000000000001,0.8331999999999999,20,2996.9,1e8df50223c411b0b2c29674aec550eccdae4d46,safe-search,2026-10-26T21:18:46,2026-10-26T22:08:43
+configs/probes/probe_sgd_lr0p02_wd5e-4.yaml,0,probe_sgd_lr0p02_wd5e-4,20261026_220850,ok,0,0.8307,0.8307,20,2897.0,1e8df50223c411b0b2c29674aec550eccdae4d46,safe-search,2026-10-26T22:08:43,2026-10-26T22:57:00
+configs/probes/probe_sgd_lr0p02.yaml,0,probe_sgd_lr0p02,20261026_225707,ok,0,0.8263,0.8178000000000001,20,2599.5,1e8df50223c411b0b2c29674aec550eccdae4d46,safe-search,2026-10-26T22:57:00,2026-10-26T23:40:20
+configs/probes/probe_sgd_mom0p95.yaml,0,probe_sgd_mom0p95,20261026_234026,ok,0,0.8249000000000002,0.8146,20,3141.2,1e8df50223c411b0b2c29674aec550eccdae4d46,safe-search,2026-10-26T23:40:20,2026-10-27T00:32:41
+configs/probes/probe_sgd_wd1e-3.yaml,0,probe_sgd_wd1e-3,20261027_003247,ok,0,0.8436999999999999,0.8364,20,2988.0,1e8df50223c411b0b2c29674aec550eccdae4d46,safe-search,2026-10-27T00:32:41,2026-10-27T01:22:29
+configs/probes/probe_sgd_wd1e-4.yaml,0,probe_sgd_wd1e-4,20261027_012235,ok,0,0.8388000000000001,0.8189,20,2724.0,1e8df50223c411b0b2c29674aec550eccdae4d46,safe-search,2026-10-27T01:22:29,2026-10-27T02:07:53
+configs/probes/probe_sgd_wd5e-4.yaml,0,probe_sgd_wd5e-4,20261027_020759,ok,0,0.8429,0.8423,20,3209.5,1e8df50223c411b0b2c29674aec550eccdae4d46,safe-search,2026-10-27T02:07:53,2026-10-27T03:01:23
+configs/ga_perclient_lambda0_cifar.yaml,0,ga_perclient_lambda0_cifar,20261027_053624,ok,0,0.8337,0.8240000000000001,20,8998.3,1e8df50223c411b0b2c29674aec550eccdae4d46,safe-search,2026-10-27T05:36:18,2026-10-27T08:06:16
+configs/ga_perclient_lambda0_cifar.yaml,1,ga_perclient_lambda0_cifar,20261027_080623,ok,0,0.8357,0.8357,20,8078.1,1e8df50223c411b0b2c29674aec550eccdae4d46,safe-search,2026-10-27T08:06:16,2026-10-27T10:20:55
+configs/ga_perclient_lambda0_cifar.yaml,2,ga_perclient_lambda0_cifar,20261027_102101,ok,0,0.8257999999999999,0.8224,20,8706.0,1e8df50223c411b0b2c29674aec550eccdae4d46,safe-search,2026-10-27T10:20:55,2026-10-27T12:46:00
