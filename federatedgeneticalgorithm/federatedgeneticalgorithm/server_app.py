@@ -1,3 +1,4 @@
+import json
 import logging
 import math
 import random
@@ -23,6 +24,7 @@ from federatedgeneticalgorithm.genetic_algorithm import HYPERPARAMS
 from federatedgeneticalgorithm.federated_genetic_algorithm import FederatedGA
 from federatedgeneticalgorithm.federated_baselines import FederatedRandomSearch, FederatedTPE, FedEx
 from federatedgeneticalgorithm.federated_fedpop import FedPop, incumbent
+from federatedgeneticalgorithm.search_space import is_harmful
 
 app = ServerApp()
 
@@ -397,6 +399,8 @@ def main(grid: Grid, context: Context) -> None:
     seed_baseline = bool(getattr(config, "FED_GA_SEED_BASELINE", True))
     use_delta_fitness = bool(getattr(config, "FED_GA_USE_DELTA_FITNESS", False))
     ga_seed_individuals = [baseline_hp] if seed_baseline else None
+    # pruned search space: FedGA/RS/TPE redraw any proposal in the harmful region before training it
+    exclude = is_harmful if bool(getattr(config, "FED_EXCLUDE_HARMFUL", False)) else None
     if config.ENABLE_FED_GA:
         searcher = FederatedGA(
             hyperparams=HYPERPARAMS,
@@ -407,6 +411,7 @@ def main(grid: Grid, context: Context) -> None:
             seed=config.SEED,
             seed_individuals=ga_seed_individuals,
             elitism=bool(config.FED_GA_ELITISM),
+            exclude=exclude,
         )
         seed_tag = "baseline-seeded" if seed_baseline else "random-pop"
         log(INFO, f"[FedGA] Initial population ({seed_tag}): {searcher.population}")
@@ -416,6 +421,7 @@ def main(grid: Grid, context: Context) -> None:
             pop_size=config.FED_GA_POPULATION_SIZE,
             seed=config.SEED,
             seed_individuals=ga_seed_individuals,
+            exclude=exclude,
         )
         seed_tag = "baseline-seeded" if seed_baseline else "random-pop"
         log(INFO, f"[FedRandomSearch] Initial snapshot ({seed_tag}): {searcher.population}")
@@ -425,6 +431,7 @@ def main(grid: Grid, context: Context) -> None:
             pop_size=config.FED_GA_POPULATION_SIZE,
             seed=config.SEED,
             seed_individuals=None,
+            exclude=exclude,
         )
         log(INFO, f"[FedTPE] Initial snapshot (random): {searcher.population}")
 
@@ -469,6 +476,12 @@ def main(grid: Grid, context: Context) -> None:
     log(INFO, "Federated Learning finished. Saving final model to disk...")
     torch.save(result.arrays.to_torch_state_dict(), "final_model.pt")
     log(INFO, "Model saved as 'final_model.pt'.")
+    if searcher is not None and exclude is not None:
+        log(INFO, f"[HPSearch] proposals redrawn out of the harmful region: {searcher.rejected}")
+        if config.ENABLE_TELEMETRY_EXPORT:
+            (telemetry.get_run_dir() / "searcher_rejections.json").write_text(
+                json.dumps({"excluded": "harmful", "rejected": searcher.rejected}), encoding="utf-8"
+            )
     log(INFO, f"Total execution time: {duration:.2f}s ({duration / 60:.2f} min)")
     log(INFO, "=" * 60 + "\n")
 

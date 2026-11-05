@@ -85,6 +85,9 @@ FED_GA_SEED_BASELINE = True
 FED_GA_USE_DELTA_FITNESS = False
 # False = ablation: the best HP is not carried into the next generation
 FED_GA_ELITISM = True
+# pruned search space for FedGA/RS/TPE: proposals in the harmful region (search_space.is_harmful)
+# are redrawn before training, so the searcher never trains them
+FED_EXCLUDE_HARMFUL = False
 # fitness for FedGA/RS/TPE: "val" = each client's held-out 20%, pooled;
 # "test" = eval-acc on the test split (old runs only)
 FED_FITNESS_SPLIT = "val"

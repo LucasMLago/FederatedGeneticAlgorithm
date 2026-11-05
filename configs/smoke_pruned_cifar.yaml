@@ -1,0 +1,25 @@
+name: "smoke_pruned"
+description: "3-round broadcast GA with the pruned search space, population 2 (tournament 2) so one generation of offspring goes through the exclusion. Checks the wiring end to end."
+
+overrides:
+  SEED: 0
+  NUM_SERVER_ROUNDS: 3
+  LOCAL_EPOCHS: 1
+  FRACTION_TRAIN: 0.5
+  PARTITION_MODE: dirichlet
+  DIRICHLET_ALPHA: 0.5
+
+  ENABLE_GA: false
+  ENABLE_SURROGATE_GA: false
+  ENABLE_FED_GA: true
+  FED_GA_POPULATION_SIZE: 2
+  TOURNAMENT_SIZE: 2
+
+  DEFAULT_BATCH_SIZE: 64
+  DEFAULT_LR: 0.01
+  DEFAULT_OPTIMIZER: sgd
+  DEFAULT_WEIGHT_DECAY: 0.0
+  DEFAULT_MOMENTUM: 0.9
+
+  FED_FITNESS_SPLIT: val
+  FED_EXCLUDE_HARMFUL: true

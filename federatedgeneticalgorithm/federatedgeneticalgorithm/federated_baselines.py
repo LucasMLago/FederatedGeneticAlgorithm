@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from federatedgeneticalgorithm.federated_genetic_algorithm import KEY_MAP
+from federatedgeneticalgorithm.search_space import allowed_lrs_by_optimizer, draw_allowed
 
 
 @dataclass
@@ -20,6 +21,9 @@ class FederatedRandomSearch:
     pop_size: int = 4  # only drives the generation bookkeeping
     seed: int = 0
     seed_individuals: Optional[List[Dict]] = None  # optionally plant known HPs in the initial pool
+    # HPs for which this returns True are redrawn before they are ever trained (pruned search space)
+    exclude: Optional[Callable[[Dict], bool]] = None
+    rejected: int = 0
 
     history: List[Tuple[int, Dict, float]] = field(default_factory=list)
     population: List[Dict] = field(default_factory=list)
@@ -34,17 +38,24 @@ class FederatedRandomSearch:
     def __post_init__(self) -> None:
         self._rng = random.Random(self.seed)
         self._seed_queue: List[Dict] = list(self.seed_individuals) if self.seed_individuals else []
+        if self.exclude is not None and any(self.exclude(hp) for hp in self._seed_queue):
+            raise ValueError("a seed individual is in the excluded region")
         # server_app prints the population at startup, so it can't be empty
         self.population = [self._sample_or_seed() for _ in range(self.pop_size)]
         self.fitnesses = [None] * self.pop_size
 
-    def _sample_or_seed(self) -> Dict:
-        if self._seed_queue:
-            return dict(self._seed_queue.pop(0))
+    def _random_hp(self) -> Dict:
         return {
             KEY_MAP[k_plural]: self._rng.choice(values)
             for k_plural, values in self.hyperparams.items()
         }
+
+    def _sample_or_seed(self) -> Dict:
+        if self._seed_queue:
+            return dict(self._seed_queue.pop(0))
+        hp, redraws = draw_allowed(self._random_hp, self.exclude)
+        self.rejected += redraws
+        return hp
 
     def select_for_round(self, server_round: int) -> Dict:
         self._current_hp = self._sample_or_seed()
@@ -84,6 +95,11 @@ class FederatedTPE:
     pop_size: int = 4  # only drives the generation bookkeeping
     seed: int = 0
     seed_individuals: Optional[List[Dict]] = None  # accepted but ignored
+    # with an exclusion the space becomes conditional: lr is drawn per optimizer (lr_<optimizer>) from
+    # that optimizer's allowed rates. Rejecting proposals does not work for TPE: it takes the best of its
+    # candidates almost deterministically and would propose the same excluded HP forever
+    exclude: Optional[Callable[[Dict], bool]] = None
+    rejected: int = 0  # stays 0, TPE never proposes an excluded HP
 
     history: List[Tuple[int, Dict, float]] = field(default_factory=list)
     population: List[Dict] = field(default_factory=list)
@@ -96,6 +112,7 @@ class FederatedTPE:
     _study: object = field(default=None, repr=False)
     _trial: object = field(default=None, repr=False)
     _distributions: object = field(default=None, repr=False)
+    _allowed_lrs: Optional[Dict[str, List]] = field(default=None, repr=False)
     _current_hp: Optional[Dict] = None
 
     def __post_init__(self) -> None:
@@ -110,10 +127,12 @@ class FederatedTPE:
             KEY_MAP[k_plural]: D.CategoricalDistribution(list(values))
             for k_plural, values in self.hyperparams.items()
         }
+        if self.exclude is not None:
+            self._allowed_lrs = allowed_lrs_by_optimizer(self.hyperparams, self.exclude)
         # telemetry snapshot; separate RNG so no TPE trial is spent before round 1
         rng = random.Random(self.seed)
         self.population = [
-            {KEY_MAP[k]: rng.choice(v) for k, v in self.hyperparams.items()}
+            draw_allowed(lambda: {KEY_MAP[k]: rng.choice(v) for k, v in self.hyperparams.items()}, self.exclude)[0]
             for _ in range(self.pop_size)
         ]
         self.fitnesses = [None] * self.pop_size
@@ -122,8 +141,19 @@ class FederatedTPE:
             pass
 
     def select_for_round(self, server_round: int) -> Dict:
-        self._trial = self._study.ask(self._distributions)
-        self._current_hp = {name: self._trial.params[name] for name in self._distributions}
+        if self._allowed_lrs is None:
+            self._trial = self._study.ask(self._distributions)
+            self._current_hp = {name: self._trial.params[name] for name in self._distributions}
+            return dict(self._current_hp)
+        self._trial = self._study.ask()
+        picked = {
+            name: self._trial.suggest_categorical(name, dist.choices)
+            for name, dist in self._distributions.items()
+            if name != "lr"
+        }
+        opt = picked["optimizer"]
+        picked["lr"] = self._trial.suggest_categorical(f"lr_{opt}", self._allowed_lrs[opt])
+        self._current_hp = {name: picked[name] for name in self._distributions}
         return dict(self._current_hp)
 
     def record_fitness(self, fitness: float) -> Dict[str, object]:

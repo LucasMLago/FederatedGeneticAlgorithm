@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
+
+from federatedgeneticalgorithm.search_space import draw_allowed
 
 
 KEY_MAP = {
@@ -28,6 +30,9 @@ class FederatedGA:
     seed: int = 0
     seed_individuals: Optional[List[Dict]] = None  # hand-picked HPs to put in initial pop
     elitism: bool = True
+    # HPs for which this returns True are redrawn before they are ever trained (pruned search space)
+    exclude: Optional[Callable[[Dict], bool]] = None
+    rejected: int = 0
 
     population: List[Dict] = field(default_factory=list)
     fitnesses: List[Optional[float]] = field(default_factory=list)
@@ -43,7 +48,9 @@ class FederatedGA:
         if not self.population:
             seeded = list(self.seed_individuals) if self.seed_individuals else []
             seeded = seeded[: self.pop_size]
-            random_fill = [self._random_hp() for _ in range(self.pop_size - len(seeded))]
+            if self.exclude is not None and any(self.exclude(hp) for hp in seeded):
+                raise ValueError("a seed individual is in the excluded region")
+            random_fill = [self._draw(self._random_hp) for _ in range(self.pop_size - len(seeded))]
             self.population = seeded + random_fill
         if not self.fitnesses:
             self.fitnesses = [None] * self.pop_size
@@ -53,6 +60,11 @@ class FederatedGA:
             KEY_MAP[k_plural]: self._rng.choice(values)
             for k_plural, values in self.hyperparams.items()
         }
+
+    def _draw(self, make) -> Dict:
+        hp, redraws = draw_allowed(make, self.exclude)
+        self.rejected += redraws
+        return hp
 
     def select_for_round(self, server_round: int) -> Dict:
         """Round-robin through the current generation."""
@@ -104,10 +116,13 @@ class FederatedGA:
         if self.elitism and self.best_hp is not None:
             new_pop.append(dict(self.best_hp))
         while len(new_pop) < self.pop_size:
-            p1 = self._tournament()
-            p2 = self._tournament()
-            child = self._crossover(p1, p2) if self._rng.random() < self.crossover_prob else dict(p1)
-            child = self._mutate(child)
-            new_pop.append(child)
+            # a child in the excluded region is discarded and bred again from fresh parents
+            new_pop.append(self._draw(self._offspring))
         self.population = new_pop
         self.fitnesses = [None] * self.pop_size
+
+    def _offspring(self) -> Dict:
+        p1 = self._tournament()
+        p2 = self._tournament()
+        child = self._crossover(p1, p2) if self._rng.random() < self.crossover_prob else dict(p1)
+        return self._mutate(child)
